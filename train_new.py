@@ -89,9 +89,9 @@ if __name__ == '__main__':
                     losses = model.get_current_losses()
                     t_comp = (time.time() - iter_start_time) / opt.batch_size
                     visualizer.print_current_losses(epoch, epoch_iter, losses, t_comp, t_data)
-                    if opt.display_id > 0:
+                    #if opt.display_id > 0:
                         #visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
-                        visualizer.plot_current_losses(epoch, float(epoch_iter) / total_len_A, losses) # for the patched dataset I'll use this
+                    visualizer.plot_current_losses(epoch, float(epoch_iter) / total_len_A, losses) # for the patched dataset I'll use this
                 if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
                     print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
                     save_suffix = 'iter_%d' % total_iters if opt.save_by_iter else 'latest'
