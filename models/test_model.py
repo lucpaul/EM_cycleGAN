@@ -23,7 +23,7 @@ class TestModel(BaseModel):
         You need to specify the network using the option '--model_suffix'.
         """
         assert not is_train, 'TestModel cannot be used during training time'
-        parser.set_defaults(dataset_mode='single')
+        parser.set_defaults(dataset_mode='patched')
         parser.add_argument('--model_suffix', type=str, default='', help='In checkpoints_dir, [epoch]_net_G[model_suffix].pth will be loaded as the generator.')
 
         return parser
@@ -57,8 +57,9 @@ class TestModel(BaseModel):
 
         We need to use 'single_dataset' dataset mode. It only load images from one domain.
         """
-        self.real = input['A'].to(self.device)
-        self.image_paths = input['A_paths']
+        self.real = input.to(self.device)
+        #self.real = input['A'].to(self.device)
+        #self.image_paths = input['A_paths']
 
     def forward(self):
         """Run forward pass."""

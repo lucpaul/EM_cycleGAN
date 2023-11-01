@@ -108,12 +108,13 @@ class CycleGANModel(BaseModel):
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
-
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
+        #print(self.fake_B.shape)
         self.rec_A = self.netG_B(self.fake_B)   # G_B(G_A(A))
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
+        #print(self.fake_A.shape)
         self.rec_B = self.netG_A(self.fake_A)   # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):

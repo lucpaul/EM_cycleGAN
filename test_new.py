@@ -30,8 +30,11 @@ import os
 from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
-from util.visualizer import save_images
-from util import html
+from util.util import tensor2im
+from data.SliceBuilder import build_slices
+import numpy as np
+import tifffile
+import math
 
 try:
     import wandb
@@ -47,10 +50,10 @@ if __name__ == '__main__':
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
     opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
+    opt.dataset_mode = 'patched_2d'
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
-
     # initialize logger
     if opt.use_wandb:
         wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
@@ -61,20 +64,37 @@ if __name__ == '__main__':
     if opt.load_iter > 0:  # load_iter is 0 by default
         web_dir = '{:s}_iter{:d}'.format(web_dir, opt.load_iter)
     print('creating web directory', web_dir)
-    webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s, Epoch = %s' % (opt.name, opt.phase, opt.epoch))
-    # test with eval mode. This only affects layers like batchnorm and dropout.
-    # For [pix2pix]: we use batchnorm and dropout in the original pix2pix. You can experiment it with and without eval() mode.
-    # For [CycleGAN]: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
-    #if opt.eval:
     model.eval()
-    for i, data in enumerate(dataset):
-        if i >= opt.num_test:  # only apply our model to opt.num_test images.
-            break
-        model.set_input(data)  # unpack data from data loader
-        model.test()           # run inference
-        visuals = model.get_current_visuals()  # get image results
-        img_path = model.get_image_paths()     # get image paths
-        if i % 5 == 0:  # save images to an HTML file
-            print('processing (%04d)-th image... %s' % (i, img_path))
-        save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize, use_wandb=opt.use_wandb)
-    webpage.save()  # save the HTML
+    for j, data in enumerate(dataset):
+        prediction_volume = []
+        #print(data['A_full_size_pad'])
+        for i in range(0, len(data['A'])):
+            size_0 = 128 * math.ceil(((data['A_full_size_pad'][1] - 254) / 128) + 1)
+            size_1 = 128 * math.ceil(((data['A_full_size_pad'][2] - 254) / 128) + 1)
+            #print(size_0, size_1)
+            input = data['A'][i]
+            model.set_input(input)
+            model.test()
+            img = model.fake
+            img = img[:, :, 63:-63, 63:-63]
+            img = tensor2im(img)
+            if i % data['patches_per_slice_A'] == 0:
+                if i != 0:
+                    prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                    prediction_map = (prediction_map * 255).astype(np.uint8)
+                    prediction_volume.append(prediction_map)
+                    #prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
+
+                prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
+                prediction_slices = build_slices(prediction_map, [128, 128], [128, 128])
+                pred_index = 0
+
+            prediction_map[prediction_slices[pred_index]] += np.squeeze(img)#.astype(np.uint8))
+            pred_index += 1
+        prediction_volume = np.asarray(prediction_volume)
+        print("writing prediction of shape: ", prediction_volume.shape)
+        tifffile.imwrite(opt.results_dir+"/image_"+str(j+1)+"_prediction.tif", prediction_volume)
+
+"""Normalize before combining?"""
+
+"""Make a pure 2D test.py file version for comparison!"""

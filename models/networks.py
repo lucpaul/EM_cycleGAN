@@ -151,6 +151,10 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
+    elif netG == 'unet_32':
+        net = UnetGenerator(input_nc, output_nc, 5, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    elif netG == 'unet_64':
+        net = UnetGenerator(input_nc, output_nc, 6, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_128':
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
@@ -463,6 +467,7 @@ class UnetGenerator(nn.Module):
 
     def forward(self, input):
         """Standard forward"""
+        #print(input.shape, self.model(input).shape)
         return self.model(input)
 
 
@@ -494,31 +499,24 @@ class UnetSkipConnectionBlock(nn.Module):
             use_bias = norm_layer == nn.InstanceNorm2d
         if input_nc is None:
             input_nc = outer_nc
-        downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
-                             stride=2, padding=1, bias=use_bias)
+        downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4, stride=2, padding=0, bias=use_bias)
         downrelu = nn.LeakyReLU(0.2, True)
-        downnorm = norm_layer(inner_nc)
+        downnorm = norm_layer(inner_nc, track_running_stats=True)
         uprelu = nn.ReLU(True)
-        upnorm = norm_layer(outer_nc)
+        upnorm = norm_layer(outer_nc, track_running_stats=True)
 
         if outermost:
-            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1)
+            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc, kernel_size=4, stride=2, padding=0)
             down = [downconv]
             up = [uprelu, upconv, nn.Tanh()]
             model = down + [submodule] + up
         elif innermost:
-            upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
+            upconv = nn.ConvTranspose2d(inner_nc, outer_nc, kernel_size=4, stride=2, padding=0, bias=use_bias)
             down = [downrelu, downconv]
             up = [uprelu, upconv, upnorm]
             model = down + up
         else:
-            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
+            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc, kernel_size=4, stride=2, padding=0, bias=use_bias)
             down = [downrelu, downconv, downnorm]
             up = [uprelu, upconv, upnorm]
 
