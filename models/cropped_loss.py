@@ -22,13 +22,9 @@ class CroppedLoss:
         else:
             x_bigger = x2
             x_smaller = x1
-        size_difference_z = x_bigger.shape[2] - min_shape
-        size_difference_y = x_bigger.shape[3] - min_shape
-        size_difference_x = x_bigger.shape[4] - min_shape
-        x_bigger = x_bigger[:, :,
-                 size_difference_z // 2:x_bigger.shape[2] - size_difference_z // 2,
-                 size_difference_y // 2:x_bigger.shape[3] - size_difference_y // 2,
-                 size_difference_x // 2:x_bigger.shape[4] - size_difference_x // 2]
+        size_difference_y = x_bigger.shape[2] - min_shape
+        size_difference_x = x_bigger.shape[3] - min_shape
+        x_bigger = x_bigger[:, size_difference_y // 2:x_bigger.shape[2] - size_difference_y // 2, size_difference_x // 2:x_bigger.shape[3] - size_difference_x // 2]
         return self.assigned_loss(x_bigger, x_smaller)
 
     def __repr__(self):
