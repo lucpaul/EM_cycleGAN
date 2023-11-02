@@ -40,9 +40,9 @@ class patchedunaligneddataset(BaseDataset):
         self.transform_A = get_transform(self.opt)#, grayscale=(input_nc == 1))
         self.transform_B = get_transform(self.opt)#, grayscale=(output_nc == 1))
 
-        self.patch_size = [254, 254]
-        self.stride_A = [222, 222]
-        self.stride_B = [254, 254]
+        self.patch_size = [opt.patch_size, opt.patch_size] #[254, 254]
+        self.stride_A = [opt.stride_A, opt.stride_A] #[222, 222]
+        self.stride_B = [opt.stride_B, opt.stride_B] #[254, 254]
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.

@@ -51,7 +51,7 @@ class BaseOptions():
         parser.add_argument('--display_winsize', type=int, default=512, help='display window size for both visdom and HTML')
         parser.add_argument('--patch_size', type=int, default=254, help='the patch size to create tiles from the dataset with')
         parser.add_argument('--stride_A', type=int, default=254, help='stride between individual patches for dataset A')
-        parser.add_argument('--stride_B', type=int, default=222, help='stride between individual patches for dataset B')
+        parser.add_argument('--stride_B', type=int, default=400, help='stride between individual patches for dataset B')
 
         # additional parameters
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
