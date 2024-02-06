@@ -109,7 +109,7 @@ class CycleGANModel(BaseModel):
         AtoB = self.opt.direction == 'AtoB'
         self.real_A = input['A' if AtoB else 'B'].to(self.device)
         self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        #fself.image_paths = input['A_paths' if AtoB else 'B_paths']
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
@@ -162,6 +162,7 @@ class CycleGANModel(BaseModel):
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
             self.idt_A = self.netG_A(self.real_B)
+            #print("Identity inputs: ", self.idt_A.shape, self.real_A.shape, self.real_B.shape)
             self.loss_idt_A = self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             # G_B should be identity if real_A is fed: ||G_B(A) - A||
             self.idt_B = self.netG_B(self.real_A)
@@ -194,7 +195,9 @@ class CycleGANModel(BaseModel):
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
+
         # forward
+
         self.forward()      # compute fake images and reconstruction images.
         # G_A and G_B
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs

@@ -59,9 +59,9 @@ def get_scheduler(optimizer, opt):
     elif opt.lr_policy == 'plateau':
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
     elif opt.lr_policy == 'cosine':
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=opt.n_epochs, eta_min=0)
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
     elif opt.lr_policy == 'cosine_wr':
-        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=0.0000002)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=1, eta_min=0)
     else:
         return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)
     return scheduler
@@ -377,7 +377,10 @@ class ResnetGenerator(nn.Module):
 
     def forward(self, input):
         """Standard forward"""
-        return self.model(input)
+
+        out = self.model(input)
+        #print("Resnet_Generator: ", input.shape, out.shape)
+        return out#self.model(input)
 
 
 class ResnetBlock(nn.Module):
@@ -437,6 +440,7 @@ class ResnetBlock(nn.Module):
     def forward(self, x):
         """Forward function (with skip connections)"""
         out = x + self.conv_block(x)  # add skip connections
+        #print(x.shape, out.shape)
         return out
 
 
@@ -531,8 +535,10 @@ class UnetSkipConnectionBlock(nn.Module):
 
     def forward(self, x):
         if self.outermost:
+            #print(x.shape, self.model(x).shape)
             return self.model(x)
         else:   # add skip connections
+            #print(x.shape, self.model(x).shape)
             return torch.cat([x, self.model(x)], 1)
 
 
