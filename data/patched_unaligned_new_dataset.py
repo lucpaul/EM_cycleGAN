@@ -37,8 +37,6 @@ class patchedunalignednewdataset(BaseDataset):
         self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
 
         self.max_samples = opt.max_dataset_size
-        #self.A_size = len(self.A_paths)  # get the size of dataset A
-        #self.B_size = len(self.B_paths)  # get the size of dataset B
         self.transform_A = get_transform(self.opt)#, grayscale=(input_nc == 1))
         self.transform_B = get_transform(self.opt)#, grayscale=(output_nc == 1))
 
@@ -59,9 +57,6 @@ class patchedunalignednewdataset(BaseDataset):
         ])
         for image_path in image_paths:
             img = tifffile.imread(image_path)#, out='memmap')
-            #print(img.min(), img.max())
-            #img = self.normalize(img, 0.1, 99.8)
-            #print(img.min(), img.max())
             img = transform(img)
 
             #img = self.normalize(img, 0.1, 99.8)
