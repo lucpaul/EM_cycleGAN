@@ -1,3 +1,3 @@
-qsub ./train.sh ./train_new.py --patch_size 126 --netG unet_32 --batch_size 1 --norm batch --lr_policy step --gan_mode lsgan --name cgan2D_ps126_bs1_batchnorm_step_lr_lsganLoss_idt_true
-qsub ./train.sh ./train_new.py --patch_size 126 --netG unet_32 --batch_size 1 --norm batch --lr_policy step --gan_mode lsgan --lambda_idt 0 --name cgan2D_ps126_bs1_batchnorm_lr_step_lsganLoss_no_idt
-qsub ./train.sh ./train_new.py --patch_size 126 --netG unet_32 --batch_size 1 --norm batch --lr_policy step --gan_mode vanilla --name cgan2D_ps126_bs1_batchnorm_step_lr_vanillaLoss_idt_true
+qsub ./train.sh ./train_new.py --patch_size 126 --stride_A 126 --stride_B 126 --netG unet_32 --batch_size 1 --norm batch --lr_policy step --gan_mode lsgan --use_wandb --no_html --name cgan2D_ps126_bs1_batchnorm_step_lr_lsganLoss_idt_true
+qsub ./train.sh ./train_new.py --patch_size 126 --stride_A 126 --stride_B 126 --netG unet_32 --batch_size 1 --norm batch --lr_policy step --gan_mode lsgan --lambda_idt 0 --use_wandb --no_html --name cgan2D_ps126_bs1_batchnorm_lr_step_lsganLoss_no_idt
+qsub ./train.sh ./train_new.py --patch_size 126 --stride_A 126 --stride_B 126 --netG unet_32 --batch_size 1 --norm batch --lr_policy step --gan_mode vanilla --use_wandb --no_html --name cgan2D_ps126_bs1_batchnorm_step_lr_vanillaLoss_idt_true

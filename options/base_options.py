@@ -49,9 +49,9 @@ class BaseOptions():
         parser.add_argument('--preprocess', type=str, default='resize_and_crop', help='scaling and cropping of images at load time [resize_and_crop | crop | scale_width | scale_width_and_crop | none]')
         parser.add_argument('--no_flip', action='store_true', help='if specified, do not flip the images for data augmentation')
         parser.add_argument('--display_winsize', type=int, default=512, help='display window size for both visdom and HTML')
-        parser.add_argument('--patch_size', type=int, default=190, help='the patch size to create tiles from the dataset with')
-        parser.add_argument('--stride_A', type=int, default=190, help='stride between individual patches for dataset A')
-        parser.add_argument('--stride_B', type=int, default=190, help='stride between individual patches for dataset B')
+        parser.add_argument('--patch_size', type=int, default=126, help='the patch size to create tiles from the dataset with')
+        parser.add_argument('--stride_A', type=int, default=126, help='stride between individual patches for dataset A')
+        parser.add_argument('--stride_B', type=int, default=126, help='stride between individual patches for dataset B')
 
         # additional parameters
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')

@@ -35,6 +35,7 @@ from data.SliceBuilder import build_slices
 import numpy as np
 import tifffile
 import math
+import torch
 
 try:
     import wandb
@@ -45,6 +46,10 @@ except ImportError:
 if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
     # hard-code some parameters for test
+    patch_size = opt.patch_size
+    stride = opt.stride_A
+    init_padding = int((patch_size - stride) / 2)
+
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
@@ -82,14 +87,14 @@ if __name__ == '__main__':
                 full_pad_dim_2 = data['A_full_size_pad'][0]
             print('predictions for orthopatches: ', direction)
             for i in range(0, len(data[direction])):
-                size_0 = 128 * math.ceil(((full_pad_dim_1 - 254) / 128) + 1)
-                size_1 = 128 * math.ceil(((full_pad_dim_2 - 254) / 128) + 1)
+                size_0 = stride * math.ceil(((full_pad_dim_1 - patch_size) / stride) + 1)
+                size_1 = stride * math.ceil(((full_pad_dim_2 - patch_size) / stride) + 1)
                 input = data[direction][i] # instead of A
                 model.set_input(input)
                 model.test()
                 img = model.fake
-                img = img[:, :, 63:-63, 63:-63]
-                img = tensor2im(img)  # + 1) / 2 * 255
+                img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]#img = img[:, :, 63:-63, 63:-63]
+                #img = tensor2im(img)  # + 1) / 2 * 255
                 if i % data['patches_per_slice'+"_"+direction] == 0:
                     if i != 0:
                         if direction == 'xy':
@@ -99,30 +104,58 @@ if __name__ == '__main__':
                         if direction == 'zx':
                             prediction_map = prediction_map[0:data['A_full_size_raw'][2], 0:data['A_full_size_raw'][0]]
 
-                        prediction_map = (prediction_map * 255).astype(np.uint8)
+                        #prediction_map = (prediction_map * 255).astype(np.uint8)
                         #prediction_volume.append(prediction_map)
                         dir_volume.append(prediction_map)
-                    prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
-                    prediction_slices = build_slices(prediction_map, [128,128], [128,128])
+                    prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
+                    prediction_slices = build_slices(prediction_map, [stride,stride], [stride,stride])
                     pred_index = 0
 
-                prediction_map[prediction_slices[pred_index]] += np.squeeze(img)#.astype(np.uint8))
+                img = torch.squeeze(torch.squeeze(img, 0), 0)
+                img = tensor2im(img)
+                img = (tensor2im(img) * 255).astype(np.uint8)
+
+                prediction_map[prediction_slices[pred_index]] += img#np.squeeze(img)#.astype(np.uint8))
                 pred_index += 1
             prediction_volume.append(dir_volume)
 
-        prediction_volume[0] = np.asarray(prediction_volume[0])
-        prediction_volume[0] = 255*(prediction_volume[0] - prediction_volume[0].min())/(prediction_volume[0].max() - prediction_volume[0].min())
+        prediction_volume[0] = np.asarray(prediction_volume[0])#.astype(np.uint8)
+        prediction_volume[0] = (prediction_volume[0] - prediction_volume[0].min())/(prediction_volume[0].max() - prediction_volume[0].min())
+        #tifffile.imwrite(opt.results_dir + "/generated_xy_" + os.path.basename(data['A_paths'][0]), prediction_volume[0])
 
-        prediction_volume[1] = np.transpose(np.asarray(prediction_volume[1]),(1,2,0))
-        prediction_volume[1] = 255 * (prediction_volume[1] - prediction_volume[1].min()) / (prediction_volume[1].max() - prediction_volume[1].min())
+        #prediction_volume[0] = 255*(prediction_volume[0] - prediction_volume[0].min())/(prediction_volume[0].max() - prediction_volume[0].min())
 
-        prediction_volume[2] = np.transpose(np.asarray(prediction_volume[2]),(2,0,1))
-        prediction_volume[2] = 255 * (prediction_volume[2] - prediction_volume[2].min()) / (prediction_volume[2].max() - prediction_volume[2].min())
+        prediction_volume[1] = np.transpose(np.asarray(prediction_volume[1]), (1, 2, 0))
+        #prediction_volume[1] = 255 * (prediction_volume[1] - prediction_volume[1].min()) / (prediction_volume[1].max() - prediction_volume[1].min())
+        prediction_volume[1] = (prediction_volume[1] - prediction_volume[1].min()) / (prediction_volume[1].max() - prediction_volume[1].min())
+        #tifffile.imwrite(opt.results_dir + "/generated_xz_" + os.path.basename(data['A_paths'][0]), prediction_volume[1])
+
+
+        prediction_volume[2] = np.transpose(np.asarray(prediction_volume[2]), (2, 0, 1))
+        # prediction_volume[2] = 255 * (prediction_volume[2] - prediction_volume[2].min()) / (prediction_volume[2].max() - prediction_volume[2].min())
+        prediction_volume[2] = (prediction_volume[2] - prediction_volume[2].min()) / (prediction_volume[2].max() - prediction_volume[2].min())
+        #tifffile.imwrite(opt.results_dir + "/generated_yz_" + os.path.basename(data['A_paths'][0]), prediction_volume[2])
 
         #print(prediction_volume[0].shape, prediction_volume[1].shape, prediction_volume[2].shape)
-        prediction_volume = np.asarray(prediction_volume)
-        prediction_volume = 255*(prediction_volume - prediction_volume.min())/(prediction_volume.max()-prediction_volume.min()) # This works
-        prediction_volume_full = ((prediction_volume[0] + prediction_volume[1] + prediction_volume[2]) / 3).astype(np.uint8)
-        prediction_volume = 255*(prediction_volume - prediction_volume.min())/(prediction_volume.max()-prediction_volume.min()) # Looks better with two normalisations
+        #prediction_volume = np.asarray(prediction_volume)
+        #prediction_volume = 255*(prediction_volume - prediction_volume.min())/(prediction_volume.max()-prediction_volume.min()) # This works
+
+        prediction_volume_full = ((prediction_volume[0] + prediction_volume[1] + prediction_volume[2]) / 3)#.astype(np.uint8)
+
+        #tifffile.imwrite(opt.results_dir + "/generated_1_" + os.path.basename(data['A_paths'][0]), prediction_volume_full)
+
+        print(prediction_volume_full.dtype, prediction_volume_full.min(), prediction_volume_full.max())
+
+        # prediction_volume_full = (255*(prediction_volume_full - prediction_volume_full.min())/(prediction_volume_full.max()-prediction_volume_full.min())).astype(np.uint8) # Looks better with two normalisations
+        prediction_volume_full = (255 * prediction_volume_full).astype(np.uint8)
+
+        print(prediction_volume_full.dtype, prediction_volume_full.min(), prediction_volume_full.max())
+
+        #prediction_volume_full = prediction_volume_full.astype(np.uint8)
+
+        #print(prediction_volume_full.dtype, prediction_volume_full.min(), prediction_volume_full.max())
         print("writing prediction of shape: ", prediction_volume_full.shape)
-        tifffile.imwrite(opt.results_dir+"/image_"+str(j+1)+"_prediction.tif", prediction_volume_full)
+
+        #print(prediction_volume.dtype, prediction_volume_full.dtype)
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume_full)
+        #tifffile.imwrite(opt.results_dir+"/image_"+str(j+1)+"_prediction.tif", prediction_volume_full)

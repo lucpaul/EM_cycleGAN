@@ -28,6 +28,9 @@ class patcheddataset(BaseDataset):
         self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
         input_nc = self.opt.output_nc if self.opt.direction == 'BtoA' else self.opt.input_nc
         self.transform = get_transform(opt)#, grayscale=(input_nc == 1))
+        self.stride = np.asarray([opt.stride_A, opt.stride_A, opt.stride_A])
+        self.patch_size = np.asarray([opt.patch_size, opt.patch_size, opt.patch_size])
+        self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -47,19 +50,20 @@ class patcheddataset(BaseDataset):
         A_img_full = tifffile.imread(A_path)
         A_img_size_raw = A_img_full.shape
         #print("raw:", A_img_size_raw)
-        z1, y1, x1 = _calc_padding(A_img_size_raw, init_padding=np.asarray([63,63,63]), input_patch_size=np.asarray([254,254,254]), stride=np.asarray([128,128,128]))
-        A_img_full = np.pad(A_img_full, pad_width=((63, z1), (63, y1), (63, x1)), mode="reflect")
+        z1, y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=self.patch_size, stride=self.stride)
+        A_img_full = np.pad(A_img_full, pad_width=((self.init_padding[0], z1), (self.init_padding[1], y1), (self.init_padding[2], x1)), mode="reflect")
         A_img_full = transform(A_img_full)
         A_img_full = torch.permute(A_img_full, (1, 2, 0))
+
         A_img_size_pad = A_img_full.shape
         patches = []
 
         A_img_full_2 = torch.permute(A_img_full, (2, 0, 1))
         A_img_full_3 = torch.permute(A_img_full, (1, 2, 0))
         print("Creating orthopatches xy")
-        for i in range(63, A_img_size_pad[0]-z1+1):
+        for i in range(self.init_padding[0], A_img_size_pad[0]-z1+1):
             A_img_slice = A_img_full[i]
-            slices = build_slices(A_img_slice, [254, 254], [128, 128])
+            slices = build_slices(A_img_slice, [self.patch_size[1], self.patch_size[2]], [self.stride[1], self.stride[2]])
             num_patches_per_slice = len(slices)
             for slice in slices:
                 A_img_patch = A_img_slice[slice]
@@ -68,9 +72,9 @@ class patcheddataset(BaseDataset):
 
         print("Creating orthopatches zy")
         patches_2 = []
-        for j in range(63, A_img_size_pad[2]-x1+1):
+        for j in range(self.init_padding[2], A_img_size_pad[2]-x1+1):
             A_img_slice = A_img_full_2[j]
-            slices = build_slices(A_img_slice, [254, 254], [128, 128])
+            slices = build_slices(A_img_slice, [self.patch_size[2], self.patch_size[2]], [self.stride[2], self.stride[2]])
             num_patches_per_slice_2 = len(slices)
             for slice in slices:
                 A_img_patch = A_img_slice[slice]
@@ -79,9 +83,9 @@ class patcheddataset(BaseDataset):
 
         print("Creating orthopatches zx")
         patches_3 = []
-        for k in range(63, A_img_size_pad[1]-y1+1):
+        for k in range(self.init_padding[1], A_img_size_pad[1]-y1+1):
             A_img_slice = A_img_full_3[k]
-            slices = build_slices(A_img_slice, [254, 254], [128, 128])
+            slices = build_slices(A_img_slice, [self.patch_size[1], self.patch_size[1]], [self.stride[1], self.stride[1]])
             num_patches_per_slice_3 = len(slices)
             for slice in slices:
                 A_img_patch = A_img_slice[slice]

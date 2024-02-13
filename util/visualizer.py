@@ -87,7 +87,7 @@ class Visualizer():
                 self.create_visdom_connections()
 
         if self.use_wandb:
-            self.wandb_run = wandb.init(project=self.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
+            self.wandb_run = wandb.init(dir=opt.checkpoints_dir, project=self.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
             self.wandb_run._label(repo='CycleGAN-and-pix2pix')
 
         if self.use_html:  # create an HTML object at <checkpoints_dir>/web/; images will be saved under <checkpoints_dir>/web/images/
@@ -178,7 +178,10 @@ class Visualizer():
             ims_dict = {}
             for label, image in visuals.items():
                 image_numpy = util.tensor2im(image)
-                wandb_image = wandb.Image(image_numpy)
+                if image_numpy.ndim >= 3:
+                    wandb_image = wandb.Image(image_numpy[0])
+                else:
+                    wandb_image = wandb.Image(image_numpy)
                 table_row.append(wandb_image)
                 ims_dict[label] = wandb_image
             self.wandb_run.log(ims_dict)

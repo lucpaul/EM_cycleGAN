@@ -35,6 +35,8 @@ from data.SliceBuilder import build_slices
 import numpy as np
 import tifffile
 import math
+from torchvision import transforms
+import torch
 
 try:
     import wandb
@@ -45,6 +47,10 @@ except ImportError:
 if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
     # hard-code some parameters for test
+    patch_size = opt.patch_size
+    stride = opt.stride_A
+
+    init_padding = int((patch_size - stride) / 2)
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
@@ -65,36 +71,49 @@ if __name__ == '__main__':
         web_dir = '{:s}_iter{:d}'.format(web_dir, opt.load_iter)
     print('creating web directory', web_dir)
     model.eval()
+    # transform = transforms.Compose([
+    #     transforms.ConvertImageDtype(dtype=torch.float32)
+    # ])
     for j, data in enumerate(dataset):
         prediction_volume = []
-        #print(data['A_full_size_pad'])
-        for i in range(0, len(data['A'])):
-            size_0 = 128 * math.ceil(((data['A_full_size_pad'][1] - 254) / 128) + 1)
-            size_1 = 128 * math.ceil(((data['A_full_size_pad'][2] - 254) / 128) + 1)
-            #print(size_0, size_1)
-            input = data['A'][i]
+        data_is_array = False
+
+        if type(data['A']) == np.ndarray:
+            data_is_array = True
+            input_list = data['A'][0]
+        elif type(data['A']) == list:
+            input_list = data['A']
+        print("input_patches: ", len(input_list))
+        for i in range(0, len(input_list)):
+            input = input_list[i]
+            #input = transform(input)
+            if data_is_array:
+                input = torch.unsqueeze(input, 0)
+
             model.set_input(input)
             model.test()
             img = model.fake
-            img = img[:, :, 63:-63, 63:-63]
-            img = tensor2im(img)
-            if i % data['patches_per_slice_A'] == 0:
+            img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
+
+            size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
+            size_1 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
+
+            if i % int(data['patches_per_slice']) == 0:
                 if i != 0:
                     prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
-                    prediction_map = (prediction_map * 255).astype(np.uint8)
                     prediction_volume.append(prediction_map)
-                    #prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
 
-                prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
-                prediction_slices = build_slices(prediction_map, [128, 128], [128, 128])
+                prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
+                prediction_slices = build_slices(prediction_map, [stride, stride], [stride, stride])
                 pred_index = 0
 
-            prediction_map[prediction_slices[pred_index]] += np.squeeze(img)#.astype(np.uint8))
+            img = torch.squeeze(torch.squeeze(img, 0), 0)
+            img = tensor2im(img)
+            img = (tensor2im(img) * 255).astype(np.uint8)
+
+            prediction_map[prediction_slices[pred_index]] += img
             pred_index += 1
+
         prediction_volume = np.asarray(prediction_volume)
-        print("writing prediction of shape: ", prediction_volume.shape)
-        tifffile.imwrite(opt.results_dir+"/image_"+str(j+1)+"_prediction.tif", prediction_volume)
 
-"""Normalize before combining?"""
-
-"""Make a pure 2D test.py file version for comparison!"""
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)

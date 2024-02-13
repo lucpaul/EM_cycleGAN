@@ -46,10 +46,13 @@ class patchedunalignednewdataset(BaseDataset):
         self.stride_A = [opt.stride_A, opt.stride_A] #[222, 222]
         self.stride_B = [opt.stride_B, opt.stride_B] #[254, 254]
 
-        self.patches_A = self.build_patches(self.A_paths, self.stride_A)
-        self.patches_B = self.build_patches(self.B_paths, self.stride_B)
+        self.filter_A = 0.3
+        self.filter_B = 0.05
 
-    def build_patches(self, image_paths, stride):
+        self.patches_A = self.build_patches(self.A_paths, self.stride_A, self.filter_A)
+        self.patches_B = self.build_patches(self.B_paths, self.stride_B, self.filter_B)
+
+    def build_patches(self, image_paths, stride, filter):
         all_patches = []
         transform = transforms.Compose([
             transforms.ToTensor()
@@ -67,21 +70,18 @@ class patchedunalignednewdataset(BaseDataset):
             print("Building patches for", image_path)
             # print(img.shape, self.patch_size, stride)
 
-            # This is the tried and tested version of the slicer
-            #print(img.shape)
-            if all([i % j == 0 for i, j in zip(torch.tensor((img.shape[0]*img.shape[1], img.shape[2])), self.patch_size)]):
-                #print(torch.tensor((img.shape[0]*img.shape[1], img.shape[2])), self.patch_size)
+            # This option is quite a bit faster, but currently should only be used if the image is evenly divisible by the patch size
+            # This one also currently will not augment the extracted patches.
+            if stride == self.patch_size and all([i % j == 0 for i, j in zip(torch.tensor((img.shape[0]*img.shape[1], img.shape[2])), self.patch_size)]):
                 img_patches = build_slices_fast(img, self.patch_size, n_samples=self.max_samples)
-                #img_patches = list(img_patches)
                 all_patches += img_patches
 
                 print('All image dimensions evenly divisible by patch size')
-                #print(len(all_patches), all_patches[0:10])
+
+            # This is the tried and trusted version of the slicer
             else:
-                #print(img.shape)
                 for z in range(0, img.shape[0]):
                     img_slice = img[z]
-                    #print("shape: ", img.shape)
                     slices = build_slices(img_slice, self.patch_size, stride)
 
                     for slice in slices:
@@ -90,11 +90,22 @@ class patchedunalignednewdataset(BaseDataset):
                         img_patch = self.transform_A(img_patch)
                         all_patches.append(img_patch)
 
-                #print(len(all_patches), all_patches[0].shape)
-
         all_patches = torch.stack(all_patches)
-        #all_patches = torch.concat(all_patches)
-        #print(all_patches.shape)
+
+        print("data shape:", all_patches.shape)
+
+        # Here I will test an option to filter out those patches that are mostly background.
+        # For now, by choosing the 5% (?) of patches with the lowest standard deviation in pixel values,
+        # which presumably contain the least insightful structures.
+
+        print("filtering out the shit patches")
+
+        stdevs = torch.squeeze(torch.std(all_patches, dim=[2, 3]), dim=1)
+        index = torch.arange(stdevs.shape[0])
+        index[stdevs < torch.quantile(stdevs, filter, keepdim=True, interpolation="nearest")] = -1
+
+        all_patches = torch.squeeze(all_patches, dim=0)[index != -1]
+        print("new data shape:", all_patches.shape)
         return all_patches
 
     def __getitem__(self, index):

@@ -14,7 +14,7 @@ class CroppedLoss:
 
         :return: assigned loss of both tensors, bigger H&W tensor is center cropped to size of smaller tensor
         """
-        #print(x1.shape, x2.shape)
+        print(x1.shape, x2.shape)
         min_shape = min(x1.shape[-1], x2.shape[-1])
         if x1.shape[-1]>x2.shape[-1]:
             x_bigger = x1

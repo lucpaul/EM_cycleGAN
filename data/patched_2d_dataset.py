@@ -7,9 +7,9 @@ from .SliceBuilder import build_slices
 import numpy as np
 
 def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
-    number_of_patches = np.ma.ceil(((volume_shape + init_padding - input_patch_size) / stride) + 1)
+    number_of_patches = np.ma.ceil(((volume_shape[1:] + init_padding - input_patch_size) / stride) + 1)
     volume_new = ((np.asarray(number_of_patches))*stride) + input_patch_size
-    new_padding = volume_new - volume_shape - init_padding
+    new_padding = volume_new - volume_shape[1:] - init_padding
     return new_padding.astype(int)
 
 class patched2ddataset(BaseDataset):
@@ -26,8 +26,51 @@ class patched2ddataset(BaseDataset):
         """
         BaseDataset.__init__(self, opt)
         self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
-        input_nc = self.opt.output_nc if self.opt.direction == 'BtoA' else self.opt.input_nc
+        #input_nc = self.opt.output_nc if self.opt.direction == 'BtoA' else self.opt.input_nc
         self.transform = get_transform(opt)#, grayscale=(input_nc == 1))
+        self.stride = np.asarray([opt.stride_A, opt.stride_A])
+        self.patch_size = np.asarray([opt.patch_size, opt.patch_size])
+
+        self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
+
+
+    def build_patches(self, image_path, patch_size, stride):
+        """We create a function which converts a volume into blocks using """
+
+        A_img_full = tifffile.imread(image_path) # Read image
+        #A_img_full = normalize(A_img_full, 0.1, 99.8) #Not tested the results for this yet
+
+        A_img_size_raw = A_img_full.shape # Get the raw image size
+        #print(A_img_full[0].shape)
+        y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=patch_size, stride=stride)
+
+        init_padding_param = int(self.init_padding[0])
+
+        A_img_full = np.pad(A_img_full, pad_width=((0, 0), (init_padding_param, y1), (init_padding_param, x1)), mode="reflect")
+
+        # slices = build_slices(A_img_full, patch_size, stride)
+
+        A_img_size_pad = A_img_full.shape
+        img_sizes = (A_img_size_raw, A_img_size_pad)
+
+        patches = []
+        for z in range(0, A_img_size_raw[0]):
+            img_slice = A_img_full[z]
+            #print(img_slice.shape)
+            slices = build_slices(img_slice, patch_size, stride)
+            for slice in slices:
+                A_img_patch = img_slice[slice]
+                A_img_patch = np.expand_dims(A_img_patch, 0)
+                patches.append(A_img_patch)
+
+        #Converting to np.ndarray is a bit mysterious in terms of RAM use. Sometimes useful, sometimes catastrophic.
+        #Leaving it here in case it's needed again.
+
+        #patches = np.array(patches)
+
+        patches_per_slice = len(slices)
+
+        return patches, img_sizes, patches_per_slice
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -39,32 +82,43 @@ class patched2ddataset(BaseDataset):
             A(tensor) - - an image in one domain
             A_paths(str) - - the path of the image
         """
+
+        patches, img_sizes, patches_per_slice = self.build_patches(self.A_paths[index], self.patch_size, self.stride)
+
         A_path = self.A_paths[index]
-        transform = transforms.Compose([
-            transforms.ToTensor()
-        ])
 
-        A_img_full = tifffile.imread(A_path)
-        A_img_size_raw = A_img_full.shape
-        #print("raw:", A_img_size_raw)
-        z1, y1, x1 = _calc_padding(A_img_size_raw, init_padding=np.asarray([63,63,63]), input_patch_size=np.asarray([254,254,254]), stride=np.asarray([128,128,128]))
-        A_img_full = np.pad(A_img_full, pad_width=((63, z1), (63, y1), (63, x1)), mode="reflect")
-        A_img_full = transform(A_img_full)
-        A_img_full = torch.permute(A_img_full, (1, 2, 0))
-        A_img_size_pad = A_img_full.shape
-        patches = []
+        A_size_raw = img_sizes[0]
 
-        #for i in range(63, A_img_size_pad[0]-z1+1):
-        for i in range(63, A_img_size_pad[0]-z1+1):
-            A_img_slice = A_img_full[i]
-            slices = build_slices(A_img_slice, [254, 254], [128, 128])
-            num_patches_per_slice = len(slices)
-            for slice in slices:
-                A_img_patch = A_img_slice[slice]
-                A_img_patch = torch.unsqueeze(A_img_patch, 0)
-                patches.append(A_img_patch)
+        A_size_pad = img_sizes[1]
 
-        return {'A': patches, 'A_paths': A_path, 'A_full_size_raw': A_img_size_raw, 'A_full_size_pad': A_img_size_pad, 'patches_per_slice_A': len(slices)}
+        return {'A': patches, 'A_paths': A_path, 'A_full_size_raw': A_size_raw, 'A_full_size_pad': A_size_pad, 'patches_per_slice': patches_per_slice}
+
+        # A_path = self.A_paths[index]
+        # transform = transforms.Compose([
+        #     transforms.ToTensor()
+        # ])
+        #
+        # A_img_full = tifffile.imread(A_path)
+        # A_img_size_raw = A_img_full.shape
+        # #print("raw:", A_img_size_raw)
+        # z1, y1, x1 = _calc_padding(A_img_size_raw, init_padding=np.asarray([63,63,63]), input_patch_size=np.asarray([254,254,254]), stride=np.asarray([128,128,128]))
+        # A_img_full = np.pad(A_img_full, pad_width=((63, z1), (63, y1), (63, x1)), mode="reflect")
+        # A_img_full = transform(A_img_full)
+        # A_img_full = torch.permute(A_img_full, (1, 2, 0))
+        # A_img_size_pad = A_img_full.shape
+        # patches = []
+        #
+        # #for i in range(63, A_img_size_pad[0]-z1+1):
+        # for i in range(63, A_img_size_pad[0]-z1+1):
+        #     A_img_slice = A_img_full[i]
+        #     slices = build_slices(A_img_slice, [254, 254], [128, 128])
+        #     num_patches_per_slice = len(slices)
+        #     for slice in slices:
+        #         A_img_patch = A_img_slice[slice]
+        #         A_img_patch = torch.unsqueeze(A_img_patch, 0)
+        #         patches.append(A_img_patch)
+        #
+        # return {'A': patches, 'A_paths': A_path, 'A_full_size_raw': A_img_size_raw, 'A_full_size_pad': A_img_size_pad, 'patches_per_slice_A': len(slices)}
 
     def __len__(self):
         """Return the total number of images in the dataset."""
