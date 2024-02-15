@@ -3,7 +3,7 @@
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
-import numpy as np
+#import numpy as np
 from math import exp
 
 

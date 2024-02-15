@@ -12,7 +12,8 @@ See our template dataset class 'template_dataset.py' for more details.
 """
 import importlib
 import torch.utils.data
-from data.base_dataset import BaseDataset
+from .base_dataset_2d import BaseDataset2D
+from .base_dataset_3d import BaseDataset3D
 
 
 def find_dataset_using_name(dataset_name):
@@ -28,8 +29,7 @@ def find_dataset_using_name(dataset_name):
     dataset = None
     target_dataset_name = dataset_name.replace('_', '') + 'dataset'
     for name, cls in datasetlib.__dict__.items():
-        if name.lower() == target_dataset_name.lower() \
-           and issubclass(cls, BaseDataset):
+        if name.lower() == target_dataset_name.lower() and (issubclass(cls, BaseDataset2D) or issubclass(cls, BaseDataset3D)):
             dataset = cls
 
     if dataset is None:
@@ -76,7 +76,8 @@ class CustomDatasetDataLoader():
             self.dataset,
             batch_size=opt.batch_size,
             shuffle=not opt.serial_batches,
-            num_workers=int(opt.num_threads))
+            num_workers=int(opt.num_threads),
+            pin_memory=True)
 
     def load_data(self):
         return self

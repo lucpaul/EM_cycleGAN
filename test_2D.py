@@ -35,7 +35,7 @@ from data.SliceBuilder import build_slices
 import numpy as np
 import tifffile
 import math
-from torchvision import transforms
+#from torchvision import transforms
 import torch
 
 try:

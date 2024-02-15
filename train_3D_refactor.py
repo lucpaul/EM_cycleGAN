@@ -24,12 +24,16 @@ from data import create_dataset
 from models import create_model
 import gc
 import torch
-from util.visualizer import Visualizer
+from util.visualizer_3d import Visualizer
+from argparse import Namespace
 
-if __name__ == '__main__':
-    gc.collect()
-    torch.cuda.empty_cache()
-    opt = TrainOptions().parse()   # get training options
+
+def train(opt):
+
+#if __name__ == '__main__':
+    # gc.collect()
+    # torch.cuda.empty_cache()
+    #opt = TrainOptions().parse()   # get training options
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
@@ -40,19 +44,24 @@ if __name__ == '__main__':
     total_iters = 0                # the total number of training iterations
 
     for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
+        gc.collect()
+        torch.cuda.empty_cache()
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()    # timer for data loading per iteration
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
+        # model.update_learning_rate()    # update learning rates in the beginning of every epoch.
+        print(len(dataset))
         for i, data in enumerate(dataset):  # inner loop within one epoch
+
             iter_start_time = time.time()  # timer for computation per iteration
             if total_iters % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
 
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
-            model.set_input(data)# unpack data from dataset and apply preprocessing
 
+            model.set_input(data)
             model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
                 save_result = total_iters % opt.update_html_freq == 0
@@ -63,7 +72,9 @@ if __name__ == '__main__':
                 losses = model.get_current_losses()
                 t_comp = (time.time() - iter_start_time) / opt.batch_size
                 visualizer.print_current_losses(epoch, epoch_iter, losses, t_comp, t_data)
-                visualizer.plot_current_losses(epoch, float(epoch_iter) / len(dataset), losses) # for the patched dataset I'll use this
+                    #if opt.display_id > 0:
+                        #visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses)
+                visualizer.plot_current_losses(epoch, float(epoch_iter) / dataset_size, losses) # for the patched dataset I'll use this
 
             if total_iters % opt.save_latest_freq == 0:   # cache our latest model every <save_latest_freq> iterations
                 print('saving the latest model (epoch %d, total_iters %d)' % (epoch, total_iters))
@@ -79,3 +90,83 @@ if __name__ == '__main__':
         model.update_learning_rate()  # update learning rates in the beginning of every epoch.
 
         print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
+
+
+#if __name__ == '__main__':
+#train()
+
+options = {
+    'dataroot': '/media/lucas2/Untitled1/Synatose_Datasets/All_new_results/Training_Datasets/HeLa-NMR',
+    'name': 'swinunetr_combined',
+    'gpu_ids': [0],
+    'checkpoints_dir': '/media/lucas2/Untitled1/Synatose_Datasets/All_new_results/Models/',
+    'model': 'cycle_gan_3d',
+    'input_nc': 1,
+    'output_nc': 1,
+    'ngf': 64,
+    'ndf': 64,
+    'netD': 'basic',
+    'netG': 'swinunetr',
+    'n_layers_D': 3,
+    'norm': 'instance',
+    'init_type': 'normal',
+    'init_gain': 0.02,
+    'no_dropout': True,
+    'dataset_mode': 'patched_unaligned_3d',
+    'patch_size': 64,
+    'stride_A': 190,
+    'stride_B': 190,
+    'direction': 'AtoB',
+    'phase': 'train',
+    'serial_batches': True,
+    'num_threads': 32,
+    'batch_size': 1,
+    'load_size': 128,
+    'crop_size': 128,
+    'max_dataset_size': float('inf'),
+    'preprocess': 'none',
+    'no_flip': False,
+    'display_winsize': 256,
+    'epoch': 'latest',
+    'load_iter': 0,
+    'verbose': True,
+    'suffix': '',
+    'use_wandb': True,
+    'wandb_project_name': 'CycleGAN-and-pix2pix',
+    'results_dir': '/media/lucas2/Untitled1/Synatose_Datasets/All_new_results/Generated_Datasets/HeLaAsMouse/',
+    'aspect_ratio': 1.0,
+    'n_epochs': 25,
+    'n_epochs_decay': 25,
+    'beta1': 0.5,
+    'lr': 0.0002,
+    'gan_mode': 'lsgan',
+    'pool_size': 50,
+    'lr_policy': 'linear',
+    'lr_decay_iters': 50,
+    'lambda_ssim_G': 0.2,
+    'lambda_ssim_cycle': 0.2,
+    'display_freq': 10,
+    'display_ncols': 3,
+    'display_id': 0,
+    'display_server': 'localhost',
+    'display_env': 'main',
+    'display_port': 8097,
+    'update_html_freq': 1000,
+    'print_freq': 100,
+    'no_html': True,
+    # network saving and loading parameters
+    'save_latest_freq': 2500,
+    'save_epoch_freq': 2,
+    'save_by_iter': True,
+    'continue_train': False,
+    'isTrain': True,
+    'epoch_count': 1,
+    'lambda_A': 10.0,
+    'lambda_B': 10.0,
+    'lambda_identity': 0.5
+}
+#
+current_options = Namespace(**options)
+
+train(current_options)
+

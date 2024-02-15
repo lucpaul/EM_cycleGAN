@@ -1,5 +1,5 @@
-from .base_dataset import BaseDataset, get_transform
-from .image_folder import make_dataset
+from .base_dataset_2d import BaseDataset, get_transform
+from .image_folder_2d import make_dataset
 import torchvision.transforms as transforms
 import tifffile
 import torch
@@ -12,7 +12,7 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
     new_padding = volume_new - volume_shape - init_padding
     return new_padding.astype(int)
 
-class patcheddataset(BaseDataset):
+class patched25ddataset(BaseDataset):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
 
     It can be used for generating CycleGAN results only for one side with the model option '-model test'.

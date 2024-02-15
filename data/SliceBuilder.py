@@ -2,6 +2,41 @@ import random
 import torch
 import torchvision.transforms as transform
 
+
+def build_slices_3d(dataset, patch_shape, stride_shape):
+    """Iterates over a given n-dim dataset patch-by-patch with a given stride
+    and builds an array of slice positions.
+
+    Returns:
+        list of slices, i.e.
+        [(slice, slice, slice, slice), ...] if len(shape) == 4
+        [(slice, slice, slice), ...] if len(shape) == 3
+    """
+    slices = []
+    #dataset = tensor2im(dataset)
+    if dataset.ndim == 4:
+        in_channels, i_z, i_y, i_x = dataset.shape
+    else:
+        i_z, i_y, i_x = dataset.shape
+
+    k_z, k_y, k_x = patch_shape
+    s_z, s_y, s_x = stride_shape
+    z_steps = _gen_indices(i_z, k_z, s_z)
+    for z in z_steps:
+        y_steps = _gen_indices(i_y, k_y, s_y)
+        for y in y_steps:
+            x_steps = _gen_indices(i_x, k_x, s_x)
+            for x in x_steps:
+                slice_idx = (
+                    slice(z, z + k_z),
+                    slice(y, y + k_y),
+                    slice(x, x + k_x)
+                )
+                if dataset.ndim == 4:
+                    slice_idx = (slice(0, in_channels),) + slice_idx
+                slices.append(slice_idx)
+    return slices
+
 def build_slices(dataset, patch_shape, stride_shape):
     """Iterates over a given n-dim dataset patch-by-patch with a given stride
     and builds an array of slice positions.

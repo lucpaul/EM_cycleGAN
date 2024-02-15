@@ -12,14 +12,15 @@ In the function <__init__>, you need to define four lists:
     -- self.loss_names (str list):          specify the training losses that you want to plot and save.
     -- self.model_names (str list):         define networks used in our training.
     -- self.visual_names (str list):        specify the images that you want to display and save.
-    -- self.optimizers (optimizer list):    define and initialize optimizers. You can define one optimizer for each network. If two networks are updated at the same time, you can use itertools.chain to group them. See cycle_gan_model.py for an usage.
+    -- self.optimizers (optimizer list):    define and initialize optimizers. You can define one optimizer for each network. If two networks are updated at the same time, you can use itertools.chain to group them. See cycle_gan_2d_model.py for an usage.
 
 Now you can use the model class by specifying flag '--model dummy'.
 See our template model class 'template_model.py' for more details.
 """
 
 import importlib
-from models.base_model import BaseModel
+from .base_model_2d import BaseModel2D
+from .base_model_3d import BaseModel3D
 
 
 def find_model_using_name(model_name):
@@ -34,8 +35,9 @@ def find_model_using_name(model_name):
     model = None
     target_model_name = model_name.replace('_', '') + 'model'
     for name, cls in modellib.__dict__.items():
+        #print(type(cls), name, cls)
         if name.lower() == target_model_name.lower() \
-           and issubclass(cls, BaseModel):
+           and (issubclass(cls, BaseModel2D) or issubclass(cls, BaseModel3D)):
             model = cls
 
     if model is None:

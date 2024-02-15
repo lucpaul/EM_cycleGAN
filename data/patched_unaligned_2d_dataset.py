@@ -2,8 +2,8 @@ import os
 
 import numpy as np
 import os
-from .base_dataset import BaseDataset, get_transform
-from .image_folder import make_dataset
+from .base_dataset_2d import BaseDataset2D, get_transform
+from .image_folder_2d import make_dataset
 from PIL import Image
 from .SliceBuilder import build_slices, build_slices_fast
 import torchvision.transforms as transforms
@@ -12,7 +12,7 @@ import random
 import torch
 
 
-class patchedunalignednewdataset(BaseDataset):
+class patchedunaligned2ddataset(BaseDataset2D):
     """
     This dataset class can load unaligned/unpaired datasets.
 
@@ -29,7 +29,7 @@ class patchedunalignednewdataset(BaseDataset):
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt)
+        BaseDataset2D.__init__(self, opt)
         self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
         self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
 

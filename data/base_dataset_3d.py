@@ -7,10 +7,11 @@ import numpy as np
 import torch.utils.data as data
 from PIL import Image
 import torchvision.transforms as transforms
+import torchvision.transforms.functional as TF
 from abc import ABC, abstractmethod
 
 
-class BaseDataset(data.Dataset, ABC):
+class BaseDataset3D(data.Dataset, ABC):
     """This class is an abstract base class (ABC) for datasets.
 
     To create a subclass, you need to implement the following four functions:
@@ -59,23 +60,34 @@ class BaseDataset(data.Dataset, ABC):
         """
         pass
 
+def normalize(input, lower_percentile, upper_percentile):
+
+    u_p_input = np.percentile(input, upper_percentile)
+    l_p_input = np.percentile(input, lower_percentile)
+
+    normalized_input = (input - l_p_input) / (u_p_input - l_p_input)
+
+    return normalized_input
 
 def get_params(opt, size):
-    w, h = size
+    d, w, h = size
     new_h = h
     new_w = w
+    new_d = d
     if opt.preprocess == 'resize_and_crop':
-        new_h = new_w = opt.load_size
+        new_h = new_w = new_d = opt.load_size
     elif opt.preprocess == 'scale_width_and_crop':
         new_w = opt.load_size
         new_h = opt.load_size * h // w
+        new_d = opt.load_size * d // w
 
     x = random.randint(0, np.maximum(0, new_w - opt.crop_size))
     y = random.randint(0, np.maximum(0, new_h - opt.crop_size))
+    z = random.randint(0, np.maximum(0, new_d - opt.crop_size))
 
     flip = random.random() > 0.5
 
-    return {'crop_pos': (x, y), 'flip': flip}
+    return {'crop_pos': (x, y, z), 'flip': flip}
 
 
 def get_transform(opt, params=None, grayscale=False, method=transforms.InterpolationMode.BICUBIC, convert=False):
@@ -95,20 +107,21 @@ def get_transform(opt, params=None, grayscale=False, method=transforms.Interpola
             transform_list.append(transforms.Lambda(lambda img: __crop(img, params['crop_pos'], opt.crop_size)))
 
     if opt.preprocess == 'none':
-        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=2, method=method)))
+        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=2, method=method))) #instead of base 4
 
     if not opt.no_flip:
         if params is None:
-            transform_list.append(transforms.RandomHorizontalFlip())
+            transform_list.append(transforms.RandomHorizontalFlip(0.25))
+            transform_list.append(transforms.RandomVerticalFlip(0.25))
         elif params['flip']:
             transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
 
     if convert:
         transform_list += [transforms.ToTensor()]
         if grayscale:
-            transform_list += [transforms.Normalize((0.5,), (0.5,))]
+            transform_list += [transforms.Normalize((0.5,), (0.5,), (0.5,))]
         else:
-            transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+            transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     return transforms.Compose(transform_list)
 
 
@@ -122,32 +135,34 @@ def __transforms2pil_resize(method):
 
 def __make_power_2(img, base, method=transforms.InterpolationMode.BICUBIC):
     method = __transforms2pil_resize(method)
-    ow, oh = img.size()[1:]
+    od, ow, oh = list(img.shape[1:])
     h = int(round(oh / base) * base)
     w = int(round(ow / base) * base)
-    if h == oh and w == ow:
+    d = int(round(od / base) * base)
+    if h == oh and w == ow and d == od:
         return img
 
-    __print_size_warning(ow, oh, w, h)
-    return img.resize((w, h), method)
+    __print_size_warning(od, ow, oh, d, w, h)
+    return img.resize((d, w, h), method)
 
 
 def __scale_width(img, target_size, crop_size, method=transforms.InterpolationMode.BICUBIC):
     method = __transforms2pil_resize(method)
-    ow, oh = img.size
+    od, ow, oh = img.size
     if ow == target_size and oh >= crop_size:
         return img
     w = target_size
     h = int(max(target_size * oh / ow, crop_size))
-    return img.resize((w, h), method)
+    d = int(max(target_size * od / ow, crop_size))
+    return img.resize((d, w, h), method)
 
 
 def __crop(img, pos, size):
-    ow, oh = img.size
-    x1, y1 = pos
-    tw = th = size
-    if (ow > tw or oh > th):
-        return img.crop((x1, y1, x1 + tw, y1 + th))
+    od, ow, oh = img.size
+    z1, x1, y1 = pos
+    td = tw = th = size
+    if (ow > tw or oh > th or od > td):
+        return img.crop((z1, x1, y1, z1+td, x1 + tw, y1 + th))
     return img
 
 
@@ -156,12 +171,17 @@ def __flip(img, flip):
         return img.transpose(Image.FLIP_LEFT_RIGHT)
     return img
 
+def __rotate(img):
+    if random.random() > 0.1:
+        angle = random.choice([-270, -180, -90, 90, 180, 270])
+        img = TF.rotate(img, angle)
+    return img
 
-def __print_size_warning(ow, oh, w, h):
+def __print_size_warning(od, ow, oh, w, h):
     """Print warning information about image size(only print once)"""
     if not hasattr(__print_size_warning, 'has_printed'):
         print("The image size needs to be a multiple of 4. "
               "The loaded image size was (%d, %d), so it was adjusted to "
               "(%d, %d). This adjustment will be done to all images "
-              "whose sizes are not multiples of 4" % (ow, oh, w, h))
+              "whose sizes are not multiples of 4" % (od, ow, oh, w, h))
         __print_size_warning.has_printed = True

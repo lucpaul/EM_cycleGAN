@@ -1,5 +1,5 @@
-from .base_dataset import BaseDataset, get_transform
-from .image_folder import make_dataset
+from .base_dataset_2d import BaseDataset, get_transform
+from .image_folder_2d import make_dataset
 import torchvision.transforms as transforms
 import tifffile
 import torch
