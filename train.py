@@ -24,12 +24,56 @@ from data import create_dataset
 from models import create_model
 import gc
 import torch
-from util.visualizer_3d import Visualizer
+from util.visualizer import Visualizer
 
 if __name__ == '__main__':
     gc.collect()
     torch.cuda.empty_cache()
     opt = TrainOptions().parse()   # get training options
+    if opt.train_mode == "3d":
+        opt.dataset_mode = 'patched_unaligned_3d'
+    elif opt.train_mode == "2d":
+        opt.dataset_mode = 'patched_unaligned_2d'
+
+    old_patch_size = opt.patch_size
+    if opt.netG.startswith('unet'):
+        depth_factor = int(opt.netG[5:])
+        # print("depth factor: ", depth_factor)
+        patch_size = opt.patch_size
+        # print(patch_size, (patch_size + 2) % depth_factor)
+        if (patch_size + 2) % depth_factor == 0:
+            pass
+        else:
+            # In the valid unet, the patch sizes that can be evenly downsampled in the layers (i.e. without residual) are
+            # limited to values which are divisible by 32, after adding the pixels lost in the valid conv layer, i.e.:
+            # 158 (instead of 160), 190 (instead of 192), 222 (instead of 224), etc. Below, the nearest available patch size
+            # selected to patch the image accordingly. (Choosing a smaller value than the given patch size, should ensure
+            # that the patches are not bigger than any dimensions of the whole input image)
+            new_patch_sizes = opt.patch_size - torch.arange(1, depth_factor)
+            new_patch_size = int(new_patch_sizes[(new_patch_sizes + 2) % depth_factor == 0])
+            opt.patch_size = new_patch_size
+            print(f"The provided patch size {old_patch_size} is not compatible with the chosen unet backbone with valid convolutions. Was resized to {new_patch_size}")
+
+    elif opt.netG.startswith("resnet"):
+        patch_size = opt.patch_size
+        if patch_size % 4 == 0:
+            pass
+        else:
+            new_patch_sizes = opt.patch_size - torch.arange(1,4)
+            new_patch_size = int(new_patch_sizes[(new_patch_sizes % 4) == 0])
+            opt.patch_size = new_patch_size
+            print(f"The provided patch size {old_patch_size} is not compatible with the resnet backbone. Was resized to {new_patch_size}")
+
+    elif opt.netG.startswith("swinunetr"):
+        patch_size = opt.patch_size
+        if patch_size % 32 == 0:
+            pass
+        else:
+            new_patch_sizes = opt.patch_size - torch.arange(1,32)
+            new_patch_size = int(new_patch_sizes[(new_patch_sizes % 32) == 0])
+            opt.patch_size = new_patch_size
+            print(f"The provided patch size {old_patch_size} is not compatible with the resnet backbone. Was resized to {new_patch_size}")
+
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
@@ -44,17 +88,15 @@ if __name__ == '__main__':
         iter_data_time = time.time()    # timer for data loading per iteration
         epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
         visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
-        model.update_learning_rate()    # update learning rates in the beginning of every epoch.
         for i, data in enumerate(dataset):  # inner loop within one epoch
-
             iter_start_time = time.time()  # timer for computation per iteration
             if total_iters % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
 
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
-
             model.set_input(data)
+
             model.optimize_parameters()   # calculate loss functions, get gradients, update network weights
             if total_iters % opt.display_freq == 0:   # display images on visdom and save images to a HTML file
                 save_result = total_iters % opt.update_html_freq == 0
@@ -77,5 +119,7 @@ if __name__ == '__main__':
             print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
             model.save_networks('latest')
             model.save_networks(epoch)
+
+        model.update_learning_rate()
 
         print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))

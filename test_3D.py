@@ -48,6 +48,20 @@ except ImportError:
 def inference(opt):
     patch_size = opt.patch_size
     stride = opt.stride_A
+    dicti = {}
+    model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
+    for x in range(1, len(model_settings) - 1):
+        dicti[model_settings[x].split(':')[0].replace(' ', '')] = model_settings[x].split(':')[1].replace(' ', '')
+
+    # Here, we make sure that the loaded model will use the same backbone as in training,
+    # disregarding if anything else is set in base_options.py
+
+    opt.netG = dicti['netG']
+    opt.ngf = dicti['ngf']
+    assert dicti['train_mode'] == '3d'
+    opt.test_mode == '3d'
+    opt.dataset_mode = 'patched_3d'
+
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
@@ -113,6 +127,7 @@ if __name__ == '__main__':
     # hard-code some parameters for test
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1
+    opt.dataset_mode = 'patched_3d'
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
     opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.

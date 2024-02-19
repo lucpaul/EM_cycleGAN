@@ -2,8 +2,8 @@ import numpy as np
 import tifffile
 
 from .SliceBuilder import build_slices_3d
-from .base_dataset_3d import BaseDataset, get_transform, normalize
-from .image_folder_3d import make_dataset
+from .base_dataset_3d import BaseDataset3D, get_transform
+from .image_folder import make_dataset
 
 
 def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
@@ -19,7 +19,7 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
 
     return new_padding.astype(int)
 
-class patcheddataset_3d(BaseDataset):
+class patcheddataset_3d(BaseDataset3D):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
 
     It can be used for generating CycleGAN results only for one side with the model option '-model test'.
@@ -31,7 +31,7 @@ class patcheddataset_3d(BaseDataset):
         Parameters:
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset.__init__(self, opt)
+        BaseDataset3D.__init__(self, opt)
         self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
 
         self.transform = get_transform(opt)#, grayscale=(input_nc == 1))

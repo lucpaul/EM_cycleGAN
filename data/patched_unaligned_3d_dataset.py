@@ -1,14 +1,12 @@
 import os
 from .base_dataset_3d import BaseDataset3D, get_transform#, normalize
-from .image_folder_3d import make_dataset
+from .image_folder import make_dataset
 from .SliceBuilder import build_slices_3d
 import torchvision.transforms as transforms
 import tifffile
 import random
 import torch
 import numpy as np
-import time
-
 
 class patchedunaligned3ddataset(BaseDataset3D):
     """
@@ -40,23 +38,25 @@ class patchedunaligned3ddataset(BaseDataset3D):
         self.stride_A = [opt.stride_A, opt.stride_A, opt.stride_A]  # [180, 180, 180]
         self.stride_B = [opt.stride_B, opt.stride_B, opt.stride_B]  # [200, 200, 200]
 
-        self.all_patches_A = self.build_patches(self.A_paths, self.stride_A)
+        self.filter_A = 0.1
+        self.filter_B = 0.01
+
+        self.all_patches_A = self.build_patches(self.A_paths, self.stride_A, self.filter_A)
 
         # Build patches for domain B during initialization
-        self.all_patches_B = self.build_patches(self.B_paths, self.stride_B)
+        self.all_patches_B = self.build_patches(self.B_paths, self.stride_B, self.filter_B)
 
         # Initialize index to track progress during training
         self.current_index = 0
 
-    def build_patches(self, image_paths, stride):
+    def build_patches(self, image_paths, stride, filter):
         all_patches = []
         transform = transforms.Compose([
             transforms.ToTensor()
         ])
-        start = time.time()
+        #start = time.time()
         for image_path in image_paths:
             img = tifffile.imread(image_path)#, out='memmap')
-
             img = transform(img)
 
             img = torch.permute(img, (1, 2, 0))
@@ -74,8 +74,17 @@ class patchedunaligned3ddataset(BaseDataset3D):
 
         all_patches = torch.stack(all_patches)
 
-        stop = time.time()
-        print(stop-start)
+        # Here I will test an option to filter out those patches that are mostly background.
+        # For now, by choosing the 5% (?) of patches with the lowest standard deviation in pixel values,
+        # which presumably contain the least insightful structures.
+
+        print("filtering out the shit patches")
+        stdevs = torch.squeeze(torch.std(all_patches, dim=[2, 3, 4]), dim=1)
+        index = torch.arange(stdevs.shape[0])
+        index[stdevs < torch.quantile(stdevs, filter, dim=None, keepdim=True, interpolation="nearest")] = -1
+
+        all_patches = torch.squeeze(all_patches, dim=0)[index != -1]
+
         return all_patches
 
     def __getitem__(self, index):
@@ -109,24 +118,7 @@ class patchedunaligned3ddataset(BaseDataset3D):
         As we have two datasets with potentially different number of images,
         we take a maximum of
         """
-        len_A = 0
-        len_B = 0
-
-        for image_A_path in self.A_paths:
-            A_img = tifffile.TiffFile(image_A_path)
-            A_img_shape = (len(A_img.pages), A_img.pages[0].shape[0], A_img.pages[0].shape[1])
-            z0, y0, x0 = np.ma.ceil(((np.asarray(A_img_shape) - np.asarray(self.patch_size)) / np.asarray(self.stride_A)) + 1)
-            number_of_patches_A = z0*y0*x0
-            len_A += number_of_patches_A
-
-        for image_B_path in self.B_paths:
-            B_img = tifffile.TiffFile(image_B_path)
-            B_img_shape = (len(B_img.pages), B_img.pages[0].shape[0], B_img.pages[0].shape[1])
-            z1, y1, x1 = np.ma.ceil(((np.asarray(B_img_shape) - np.asarray(self.patch_size)) / np.asarray(self.stride_B)) + 1)
-            number_of_patches_B = z1*y1*x1
-            len_B += number_of_patches_B
-
-        return min(int(len_A), int(len_B))
+        return min(len(self.all_patches_A), len(self.all_patches_B))#min(int(len_A), int(len_B))
 
 
     def normalize(self, input, lower_percentile, upper_percentile):

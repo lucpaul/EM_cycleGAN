@@ -24,7 +24,7 @@ from data import create_dataset
 from models import create_model
 import gc
 import torch
-from util.visualizer_3d import Visualizer
+from util.visualizer import Visualizer
 from argparse import Namespace
 
 
@@ -114,8 +114,8 @@ options = {
     'no_dropout': True,
     'dataset_mode': 'patched_unaligned_3d',
     'patch_size': 64,
-    'stride_A': 190,
-    'stride_B': 190,
+    'stride_A': 128,
+    'stride_B': 128,
     'direction': 'AtoB',
     'phase': 'train',
     'serial_batches': True,
@@ -147,11 +147,11 @@ options = {
     'lambda_ssim_cycle': 0.2,
     'display_freq': 10,
     'display_ncols': 3,
-    'display_id': 0,
-    'display_server': 'localhost',
-    'display_env': 'main',
-    'display_port': 8097,
-    'update_html_freq': 1000,
+    #'display_id': 0,
+    #'display_server': 'localhost',
+    #'display_env': 'main',
+    #'display_port': 8097,
+    #'update_html_freq': 1000,
     'print_freq': 100,
     'no_html': True,
     # network saving and loading parameters
@@ -163,7 +163,8 @@ options = {
     'epoch_count': 1,
     'lambda_A': 10.0,
     'lambda_B': 10.0,
-    'lambda_identity': 0.5
+    'lambda_identity': 0.5,
+    'train_mode': '3d'
 }
 #
 current_options = Namespace(**options)

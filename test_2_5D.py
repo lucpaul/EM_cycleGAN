@@ -55,7 +55,21 @@ if __name__ == '__main__':
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
     opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-    opt.dataset_mode = 'patched'
+
+    dicti = {}
+    model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
+    for x in range(1, len(model_settings) - 1):
+        dicti[model_settings[x].split(':')[0].replace(' ', '')] = model_settings[x].split(':')[1].replace(' ', '')
+
+    # Here, we make sure that the loaded model will use the same backbone as in training,
+    # disregarding if anything else is set in base_options.py
+
+    opt.netG = dicti['netG']
+    opt.ngf = dicti['ngf']
+    assert dicti['train_mode'] == '2d'
+    opt.test_mode == '2_5d'
+    opt.dataset_mode = 'patched_2_5d'
+
     #dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset = create_dataset(opt)
     model = create_model(opt)      # create a model given opt.model and other options

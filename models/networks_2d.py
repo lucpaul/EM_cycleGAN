@@ -153,6 +153,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
     elif netG == 'resnet_6blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
+    elif netG == 'unet_16':
+        net = UnetGenerator(input_nc, output_nc, 4, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_32':
         net = UnetGenerator(input_nc, output_nc, 5, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_64':
@@ -379,10 +381,7 @@ class ResnetGenerator(nn.Module):
 
     def forward(self, input):
         """Standard forward"""
-
-        out = self.model(input)
-        #print("Resnet_Generator: ", input.shape, out.shape)
-        return out#self.model(input)
+        return self.model(input)
 
 
 class ResnetBlock(nn.Module):
@@ -442,7 +441,6 @@ class ResnetBlock(nn.Module):
     def forward(self, x):
         """Forward function (with skip connections)"""
         out = x + self.conv_block(x)  # add skip connections
-        #print(x.shape, out.shape)
         return out
 
 
@@ -475,7 +473,7 @@ class UnetGenerator(nn.Module):
 
     def forward(self, input):
         """Standard forward"""
-        print(input.shape, self.model(input).shape)
+        #print(input.shape, self.model(input).shape)
         return self.model(input)
 
 

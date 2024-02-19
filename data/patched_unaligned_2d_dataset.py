@@ -3,7 +3,7 @@ import os
 import numpy as np
 import os
 from .base_dataset_2d import BaseDataset2D, get_transform
-from .image_folder_2d import make_dataset
+from .image_folder import make_dataset
 from PIL import Image
 from .SliceBuilder import build_slices, build_slices_fast
 import torchvision.transforms as transforms
@@ -32,10 +32,8 @@ class patchedunaligned2ddataset(BaseDataset2D):
         BaseDataset2D.__init__(self, opt)
         self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
         self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
-
         self.A_paths = sorted(make_dataset(self.dir_A, opt.max_dataset_size))   # load images from '/path/to/data/trainA'
         self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
-
         self.max_samples = opt.max_dataset_size
         self.transform_A = get_transform(self.opt)#, grayscale=(input_nc == 1))
         self.transform_B = get_transform(self.opt)#, grayscale=(output_nc == 1))
@@ -58,13 +56,10 @@ class patchedunaligned2ddataset(BaseDataset2D):
         for image_path in image_paths:
             img = tifffile.imread(image_path)#, out='memmap')
             img = transform(img)
-
             #img = self.normalize(img, 0.1, 99.8)
-
             img = torch.permute(img, (1, 2, 0))
             print("Building patches for", image_path)
             # print(img.shape, self.patch_size, stride)
-
             # This option is quite a bit faster, but currently should only be used if the image is evenly divisible by the patch size
             # This one also currently will not augment the extracted patches.
             if stride == self.patch_size and all([i % j == 0 for i, j in zip(torch.tensor((img.shape[0]*img.shape[1], img.shape[2])), self.patch_size)]):
@@ -87,7 +82,7 @@ class patchedunaligned2ddataset(BaseDataset2D):
 
         all_patches = torch.stack(all_patches)
 
-        print("data shape:", all_patches.shape)
+        #print("data shape:", all_patches.shape)
 
         # Here I will test an option to filter out those patches that are mostly background.
         # For now, by choosing the 5% (?) of patches with the lowest standard deviation in pixel values,
@@ -97,10 +92,9 @@ class patchedunaligned2ddataset(BaseDataset2D):
 
         stdevs = torch.squeeze(torch.std(all_patches, dim=[2, 3]), dim=1)
         index = torch.arange(stdevs.shape[0])
-        index[stdevs < torch.quantile(stdevs, filter, keepdim=True, interpolation="nearest")] = -1
+        index[stdevs < torch.quantile(stdevs, filter, dim=None, keepdim=True, interpolation="nearest")] = -1
 
         all_patches = torch.squeeze(all_patches, dim=0)[index != -1]
-        print("new data shape:", all_patches.shape)
         return all_patches
 
     def __getitem__(self, index):

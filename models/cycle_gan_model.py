@@ -1,10 +1,10 @@
 import torch
 import itertools
 from util.image_pool import ImagePool
-from .base_model_2d import BaseModel2D
-from . import networks_2d, SSIM
+from .base_model import BaseModel
+#from . import SSIM
 
-class CycleGAN2DModel(BaseModel2D):
+class CycleGANModel(BaseModel):
     """
     This class implements the CycleGAN model, for learning image-to-image translation without paired data.
 
@@ -49,7 +49,7 @@ class CycleGAN2DModel(BaseModel2D):
         Parameters:
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseModel2D.__init__(self, opt)
+        BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
@@ -69,16 +69,24 @@ class CycleGAN2DModel(BaseModel2D):
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
-        self.netG_A = networks_2d.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.netG_B = networks_2d.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
-                                        not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        if self.opt.train_mode == '2d':
+            from . import networks_2d as networks
+            from .SSIM import SSIM as SSIM
+
+        elif self.opt.train_mode == '3d':
+            from . import networks_3d as networks
+            from .SSIM import SSIM3D as SSIM
+
+        self.netG_A = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
+                                            not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
+                                            not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:  # define discriminators
-            self.netD_A = networks_2d.define_D(opt.output_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
-            self.netD_B = networks_2d.define_D(opt.input_nc, opt.ndf, opt.netD,
-                                            opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+            self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
+                                                opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+            self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
+                                                opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:
             if opt.lambda_identity > 0.0:  # only works when input and output images have the same number of channels
@@ -86,11 +94,14 @@ class CycleGAN2DModel(BaseModel2D):
             self.fake_A_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             self.fake_B_pool = ImagePool(opt.pool_size)  # create image buffer to store previously generated images
             # define loss functions
-            self.criterionGAN = networks_2d.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
-            if opt.lambda_ssim_G > 0:
-                self.criterionCycle = SSIM.SSIM()#CroppedLoss(SSIM.SSIM())
+            self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)  # define GAN loss.
+            if opt.lambda_ssim_cycle > 0:
+                self.criterionCycle = SSIM()#CroppedLoss(SSIM.SSIM())
             else:
                 self.criterionCycle = torch.nn.L1Loss()#CroppedLoss(torch.nn.L1Loss())
+
+            self.criterion_SSIM_G = SSIM()
+
             self.criterionIdt = torch.nn.L1Loss()
             #self.criterionIdt = CroppedLoss(torch.nn.L1Loss())
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
@@ -157,7 +168,8 @@ class CycleGAN2DModel(BaseModel2D):
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
-        lambda_G = self.opt.lambda_ssim_G
+        lambda_G_gen = self.opt.lambda_ssim_G
+        lambda_G_cycle = self.opt.lambda_ssim_cycle
 
         # Identity loss
         if lambda_idt > 0:
@@ -173,24 +185,19 @@ class CycleGAN2DModel(BaseModel2D):
             self.loss_idt_B = 0
 
         # GAN loss D_A(G_A(A))
-
         #self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
-        self.loss_G_A = (1-lambda_G) * self.criterionGAN(self.netD_A(self.fake_B), True) + lambda_G * (1 - self.criterionCycle(self.real_A, self.fake_B))
-
+        self.loss_G_A = (1-lambda_G_gen) * self.criterionGAN(self.netD_A(self.fake_B), True) + lambda_G_gen * (1 - self.criterion_SSIM_G(self.real_A, self.fake_B))
         # GAN loss D_B(G_B(B))
-
         #self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
-        self.loss_G_B = (1-lambda_G) * self.criterionGAN(self.netD_B(self.fake_A), True) + lambda_G * (1 - self.criterionCycle(self.real_B, self.fake_A))
-
+        self.loss_G_B = (1-lambda_G_gen) * self.criterionGAN(self.netD_B(self.fake_A), True) + lambda_G_gen * (1 - self.criterion_SSIM_G(self.real_B, self.fake_A))
         # Forward cycle loss || G_B(G_A(A)) - A||
         # Backward cycle loss || G_A(G_B(B)) - B||
-        if lambda_G > 0:
+        if lambda_G_cycle > 0:
             self.loss_cycle_A = (1 - self.criterionCycle(self.rec_A, self.real_A)) * lambda_A  # if using with SSIM
             self.loss_cycle_B = (1 - self.criterionCycle(self.rec_B, self.real_B)) * lambda_B  # if using with SSIM
         else:
             self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
             self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
-
 
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
@@ -198,9 +205,7 @@ class CycleGAN2DModel(BaseModel2D):
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
-
         # forward
-
         self.forward()      # compute fake images and reconstruction images.
         # G_A and G_B
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs

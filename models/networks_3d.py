@@ -475,7 +475,6 @@ class UnetGenerator(nn.Module):
         # gradually reduce the number of filters from ngf * 8 to ngf
         unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
         unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
         self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
 
@@ -634,6 +633,8 @@ class PixelDiscriminator(nn.Module):
         return self.net(input)
 
 class SwinUnetrGenerator(nn.Module):
+    # Depending on the torch and monai version, reentrant = False needs to be commented out of the file
+   # /home/username/miniconda3/envs/environment_name/lib/python3.8/site-packages/monai/networks/nets/swinunetr.py, line 696 and 701.
     def __init__(self, patch_size, input_nc, output_nc, ngf=48):
         super(SwinUnetrGenerator, self).__init__()
 
