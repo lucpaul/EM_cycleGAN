@@ -87,7 +87,7 @@ class patchedunaligneddataset(BaseDataset):
         B_img = self.normalize(B_img, 0.1, 99.8)
         patches_B = []
 
-        for i in list(range(0, B_img.shape[0]))[0::10]:
+        for i in list(range(0, B_img.shape[0]))[0::45]:
             B_img_2D_slice = B_img[i, :, :]
             slices_B = build_slices(B_img_2D_slice, self.patch_size, self.stride_B)
 

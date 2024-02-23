@@ -11,8 +11,8 @@
 ### $ -l gpu=1 -l cuda_name="Tesla-V100-SXM2-16GB"
 ### $ -l h=maxg03,h=maxg04,h=maxg05,h=maxg06,h=maxg07,h=maxg08,gpu=1
 #$ -l gpu=1
-#$ -l cuda_type=V100
-#$ -l m_mem_free=45G
+#$ -l m_mem_free=120G
+#$ -l cuda_type=A40
 #$ -cwd
 #$ -V
 #$ -e error_log_$JOB_ID
