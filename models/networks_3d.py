@@ -544,10 +544,7 @@ class UnetSkipConnectionBlock(nn.Module):
             return self.model(x)
         else:   # add skip connections
             x_out = self.model(x)
-            #print(x.dtype, x_out.dtype, x.min(), x.max(), x_out.min(), x_out.max())
-            #print(x.shape, x_out.shape)
             return torch.cat([x, x_out], 1)
-            #return self.model(x)
 
 
 class NLayerDiscriminator(nn.Module):
@@ -595,9 +592,6 @@ class NLayerDiscriminator(nn.Module):
 
     def forward(self, input):
         """Standard forward."""
-        #print(input.shape, input.min(), input.max())
-        #input = self.transform(input)
-        #with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
         return self.model(input)
 
 

@@ -190,13 +190,28 @@ class BaseModel(ABC):
                 # if you are using PyTorch newer than 0.4 (e.g., built from
                 # GitHub source), you can remove str() on self.device
                 state_dict = torch.load(load_path, map_location=str(self.device))
+
                 if hasattr(state_dict, '_metadata'):
                     del state_dict._metadata
 
+                if self.opt.netG == 'swinunetr':
+                    # There are some issues with this section. Most importantly, to load the weights into the model,
+                    # the source file for the swinunetr model needs to be changed such that the last four layers in each block
+                    # are not included. see /home/user/miniconda3/envs/environment_name/lib/python3.8/site-packages/monai/networks/nets/swinunetr.py
+                    # and comment out the lines 672 to 675. Then it should work. We will look at a proper solution in the future.
+
+                    new_state_dict = {}
+                    for old_key in state_dict.keys():
+                        key = old_key.replace('swinViT', 'module')
+                        new_state_dict[key] = state_dict[old_key]
+                    dict_with_added_key = {'state_dict': new_state_dict}
+                    net.load_from(weights=dict_with_added_key)
+
                 # patch InstanceNorm checkpoints prior to 0.4
-                for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
-                    self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
-                net.load_state_dict(state_dict, strict=False)
+                else:
+                    for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
+                        self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
+                    net.load_state_dict(state_dict, strict=False)
 
     def print_networks(self, verbose):
         """Print the total number of parameters in the network and (if verbose) network architecture

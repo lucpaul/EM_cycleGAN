@@ -118,11 +118,10 @@ class patchedunaligned3ddataset(BaseDataset3D):
         As we have two datasets with potentially different number of images,
         we take a maximum of
         """
-        return min(len(self.all_patches_A), len(self.all_patches_B))#min(int(len_A), int(len_B))
+        return min(len(self.all_patches_A), len(self.all_patches_B))
 
 
     def normalize(self, input, lower_percentile, upper_percentile):
-        #print("input max:", input.max(), "input min: ", input.min())
         u_p_input = np.percentile(input, upper_percentile)
         l_p_input = np.percentile(input, lower_percentile)
 

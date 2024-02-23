@@ -54,12 +54,10 @@ class patchedunaligned2ddataset(BaseDataset2D):
             transforms.ToTensor()
         ])
         for image_path in image_paths:
-            img = tifffile.imread(image_path)#, out='memmap')
+            img = tifffile.imread(image_path)
             img = transform(img)
-            #img = self.normalize(img, 0.1, 99.8)
             img = torch.permute(img, (1, 2, 0))
             print("Building patches for", image_path)
-            # print(img.shape, self.patch_size, stride)
             # This option is quite a bit faster, but currently should only be used if the image is evenly divisible by the patch size
             # This one also currently will not augment the extracted patches.
             if stride == self.patch_size and all([i % j == 0 for i, j in zip(torch.tensor((img.shape[0]*img.shape[1], img.shape[2])), self.patch_size)]):
@@ -81,8 +79,6 @@ class patchedunaligned2ddataset(BaseDataset2D):
                         all_patches.append(img_patch)
 
         all_patches = torch.stack(all_patches)
-
-        #print("data shape:", all_patches.shape)
 
         # Here I will test an option to filter out those patches that are mostly background.
         # For now, by choosing the 5% (?) of patches with the lowest standard deviation in pixel values,
@@ -133,7 +129,6 @@ class patchedunaligned2ddataset(BaseDataset2D):
 
 
     def normalize(self, input, lower_percentile, upper_percentile):
-        #print("input max:", input.max(), "input min: ", input.min())
         u_p_input = np.percentile(input, upper_percentile)
         l_p_input = np.percentile(input, lower_percentile)
 

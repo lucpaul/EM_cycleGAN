@@ -11,10 +11,7 @@ You need to implement the following functions:
     -- <__getitem__>: Return a data point and its metadata information.
     -- <__len__>: Return the number of images.
 """
-from data.base_dataset import BaseDataset, get_transform
-# from data.image_folder import make_dataset
-# from PIL import Image
-
+from .base_dataset_2d import BaseDataset2D as BaseDataset, get_transform
 
 class TemplateDataset(BaseDataset):
     """A template dataset class for you to implement custom datasets."""

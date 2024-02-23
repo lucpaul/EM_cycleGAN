@@ -83,11 +83,14 @@ def build_slices_fast(dataset, patch_size, n_samples=0):
         #print("n_samples: ", n_samples)
     # Collapse first dimension to make 2D version of input
     # A_img: (d, h, w) -> A_img_new: (d * h, w)
+    #print(type(dataset), type(dataset.shape[0]), type(dataset.shape[0]))
     A_img_new = dataset.view(dataset.shape[0] * dataset.shape[1], -1)
 
     # Chunk the first dimension of the 2D object
     # A_img_new: (d*h, w) -> torch.chunk: d/patch_size tensors of shape: (d*h, patch_size_1)) -> A_chunks: (d/patch_size_1, d*h, patch_size_0)
     A_chunks = torch.stack(torch.chunk(A_img_new, int(A_img_new.shape[1] / patch_size[1]), dim=1))
+
+    #print(A_chunks.shape)
 
     # Chunk the remaining dimension
     # A_chunks: (d/patch_size, d*h, patch_size) --> A_chunks: (d*h/patch_size, d/patch_size, patch_size_0, patch_size_1)

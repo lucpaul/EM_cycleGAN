@@ -35,7 +35,7 @@ from data.SliceBuilder import build_slices
 import numpy as np
 import tifffile
 import math
-#from torchvision import transforms
+from torchvision import transforms
 import torch
 
 try:
@@ -44,19 +44,10 @@ except ImportError:
     print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
 
 
-if __name__ == '__main__':
-    opt = TestOptions().parse()  # get test options
-    # hard-code some parameters for test
+def inference(opt):
     patch_size = opt.patch_size
-    stride = opt.stride_A
+    #stride = opt.stride_A
 
-    init_padding = int((patch_size - stride) / 2)
-    opt.num_threads = 0   # test code only supports num_threads = 0
-    opt.batch_size = 1    # test code only supports batch_size = 1
-    opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
-    opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
-    opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-    opt.dataset_mode = 'patched_2d'
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
     for x in range(1, len(model_settings) - 1):
@@ -66,9 +57,18 @@ if __name__ == '__main__':
     # disregarding if anything else is set in base_options.py
 
     opt.netG = dicti['netG']
-    opt.ngf = dicti['ngf']
-    assert dicti['train_mode'] == '2d'
-    opt.test_mode == '2d'
+    if opt.netG.startswith('unet') or opt.netG.startswith('resnet'):
+        opt.ngf = int(dicti['ngf'])
+    assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
+    #opt.test_mode == '2d'
+
+    # Need to still test this again
+    difference = 0
+    for i in range(2, int(opt.netG[5:])+2):
+        difference += 2 ** i
+    stride = patch_size - difference - 2
+
+    init_padding = int((patch_size - stride) / 2)
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)      # create a model given opt.model and other options
@@ -84,9 +84,9 @@ if __name__ == '__main__':
         web_dir = '{:s}_iter{:d}'.format(web_dir, opt.load_iter)
     print('creating web directory', web_dir)
     model.eval()
-    # transform = transforms.Compose([
-    #     transforms.ConvertImageDtype(dtype=torch.float32)
-    # ])
+    transform = transforms.Compose([
+        transforms.ConvertImageDtype(dtype=torch.float32)
+    ])
     for j, data in enumerate(dataset):
         prediction_volume = []
         data_is_array = False
@@ -99,7 +99,7 @@ if __name__ == '__main__':
         print("input_patches: ", len(input_list))
         for i in range(0, len(input_list)):
             input = input_list[i]
-            #input = transform(input)
+            input = transform(input)
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
 
@@ -127,6 +127,21 @@ if __name__ == '__main__':
             prediction_map[prediction_slices[pred_index]] += img
             pred_index += 1
 
+            if i == len(input_list)-1:
+                prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                prediction_volume.append(prediction_map)
+
         prediction_volume = np.asarray(prediction_volume)
 
         tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)
+
+if __name__ == '__main__':
+    # read out sys.argv arguments and parse
+    opt = TestOptions().parse()
+    opt.num_threads = 0  # test code only supports num_threads = 0
+    opt.batch_size = 1  # test code only supports batch_size = 1
+    opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
+    opt.no_flip = True  # no flip; comment this line if results on flipped images are needed.
+    # opt.display_id = -1  # no visdom display; the test code saves the results to a HTML file.
+    opt.dataset_mode = 'patched_2d'
+    inference(opt)

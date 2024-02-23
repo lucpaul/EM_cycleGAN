@@ -28,9 +28,21 @@ class patched2ddataset(BaseDataset2D):
         self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
         #input_nc = self.opt.output_nc if self.opt.direction == 'BtoA' else self.opt.input_nc
         self.transform = get_transform(opt)#, grayscale=(input_nc == 1))
-        self.stride = np.asarray([opt.stride_A, opt.stride_A])
+        #self.stride = np.asarray([opt.stride_A, opt.stride_A])
         self.patch_size = np.asarray([opt.patch_size, opt.patch_size])
 
+        if opt.netG.startswith('unet'):
+            difference = 0
+            for i in range(2, int(opt.netG[5:]) + 2):
+                difference += 2 ** i
+            stride = opt.patch_size - difference - 2
+            self.stride = np.asarray([stride, stride])
+        else:
+            self.stride = self.patch_size
+        #print("dataset: ", self.patch_size)
+
+        assert opt.patch_size >= opt.stride_A, f"Images can only be stitched if patch size is at least equal to stride, but not smaller. " \
+                                               f"Given patch size is {self.patch_size} and stride {self.stride}. That won't work."
         self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
 
 
@@ -41,14 +53,11 @@ class patched2ddataset(BaseDataset2D):
         #A_img_full = normalize(A_img_full, 0.1, 99.8) #Not tested the results for this yet
 
         A_img_size_raw = A_img_full.shape # Get the raw image size
-        #print(A_img_full[0].shape)
-        y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=patch_size, stride=stride)
 
-        init_padding_param = int(self.init_padding[0])
-
-        A_img_full = np.pad(A_img_full, pad_width=((0, 0), (init_padding_param, y1), (init_padding_param, x1)), mode="reflect")
-
-        # slices = build_slices(A_img_full, patch_size, stride)
+        if self.opt.netG.startswith('unet'):
+            y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=patch_size, stride=stride)
+            init_padding_param = int(self.init_padding[0])
+            A_img_full = np.pad(A_img_full, pad_width=((0, 0), (init_padding_param, y1), (init_padding_param, x1)), mode="reflect")
 
         A_img_size_pad = A_img_full.shape
         img_sizes = (A_img_size_raw, A_img_size_pad)
@@ -56,7 +65,6 @@ class patched2ddataset(BaseDataset2D):
         patches = []
         for z in range(0, A_img_size_raw[0]):
             img_slice = A_img_full[z]
-            #print(img_slice.shape)
             slices = build_slices(img_slice, patch_size, stride)
             for slice in slices:
                 A_img_patch = img_slice[slice]
@@ -83,6 +91,7 @@ class patched2ddataset(BaseDataset2D):
             A_paths(str) - - the path of the image
         """
 
+        #print("getItem: ", self.patch_size, self.stride)
         patches, img_sizes, patches_per_slice = self.build_patches(self.A_paths[index], self.patch_size, self.stride)
 
         A_path = self.A_paths[index]

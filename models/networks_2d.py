@@ -164,7 +164,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'swinunetr':
-        net = SwinUnetrGenerator((96,96), input_nc, output_nc)
+        #net = SwinUnetrGenerator((96,96), input_nc, output_nc)
+        net = swin_unetr.SwinUNETR(img_size=(96,96), in_channels=input_nc, out_channels=output_nc, feature_size=48,use_checkpoint=True,spatial_dims=2)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -473,7 +474,6 @@ class UnetGenerator(nn.Module):
 
     def forward(self, input):
         """Standard forward"""
-        #print(input.shape, self.model(input).shape)
         return self.model(input)
 
 
@@ -535,10 +535,8 @@ class UnetSkipConnectionBlock(nn.Module):
 
     def forward(self, x):
         if self.outermost:
-            #print(x.shape, self.model(x).shape)
             return self.model(x)
         else:   # add skip connections
-            #print(x.shape, self.model(x).shape)
             return torch.cat([x, self.model(x)], 1)
 
 
@@ -632,8 +630,8 @@ class SwinUnetrGenerator(nn.Module):
                                      use_checkpoint=True,
                                      spatial_dims=2)
 
-        self.net = model
+        self.model = model
 
     def forward(self, input):
         """Standard forward"""
-        return self.net(input)
+        return self.model(input)

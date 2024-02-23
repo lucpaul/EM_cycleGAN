@@ -36,7 +36,6 @@ from util.util import tensor2im
 from data.SliceBuilder import build_slices_3d
 import numpy as np
 import tifffile
-import math
 import torch
 from torch import nn
 
@@ -48,19 +47,13 @@ except ImportError:
 
 def inference(opt):
     patch_size = opt.patch_size
-    stride = opt.stride_A
-    if opt.netG.startswith("unet"):
-        tile_and_stitch = True
-    else:
-        tile_and_stitch = False
+    stride = opt.patch_size#opt.stride_A
+
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
-    if tile_and_stitch:
-        patch_halo = (4, 4, 4)
-    else:
-        init_padding = int((patch_size - stride) / 2)
+    patch_halo = (4, 4, 4)
 
     # initialize logger
     if opt.use_wandb:
@@ -68,7 +61,6 @@ def inference(opt):
                                config=opt) if not wandb.run else wandb.run
         wandb_run._label(repo='CycleGAN-and-pix2pix')
     # test with eval mode. This only affects layers like batchnorm and dropout.
-    # For [pix2pix]: we use batchnorm and dropout in the original pix2pix. You can experiment it with and without eval() mode.
     # For [CycleGAN]: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
     model.eval()
     transform = transforms.Compose([
@@ -82,7 +74,7 @@ def inference(opt):
             input_list = data['A'][0]
         elif type(data['A']) == list:
             input_list = data['A']
-            #print(len(input_list))
+
         for i in range(0, len(input_list)):
             input = input_list[i]
             input = transform(input)
@@ -90,53 +82,32 @@ def inference(opt):
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
 
-            if not tile_and_stitch:
-                 input = _pad(input, patch_halo)
+            input = _pad(input, patch_halo)
 
             model.set_input(input)
             model.test()
             img = model.fake
 
-            if tile_and_stitch:
-                img = img[:, :, init_padding:-init_padding, init_padding:-init_padding, init_padding:-init_padding]
-
             if prediction_map is None:
-                if tile_and_stitch:
-                    size_0 = stride * math.ceil(((data['A_full_size_pad'][0] - patch_size) / stride) + 1)  # for 190 use 64 instead of 38
-                    size_1 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
-                    size_2 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
-                    prediction_map = np.zeros((size_0, size_1, size_2), dtype=np.uint8)
-                    prediction_slices = build_slices_3d(prediction_map, [stride, stride, stride], [stride, stride, stride])
+                prediction_map = np.zeros((data['A_full_size_raw'][0], data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.float32)
+                normalization_map = np.zeros((data['A_full_size_raw'][0], data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.uint8)
 
-                else:
-                    prediction_map = np.zeros((data['A_full_size_raw'][0], data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.float32)
-                    normalization_map = np.zeros((data['A_full_size_raw'][0], data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.uint8)
+                prediction_slices = build_slices_3d(prediction_map, [patch_size, patch_size, patch_size], [stride, stride, stride])
 
-                    # prediction_map = torch.zeros(size_0, size_1, size_2, dtype=torch.float32, device="cuda")
+            img = _unpad(img, patch_halo)
+            img = torch.squeeze(torch.squeeze(img, 0), 0)
+            img = tensor2im(img)
+            normalization_map[prediction_slices[i]] += 1
 
-                    prediction_slices = build_slices_3d(prediction_map, [patch_size, patch_size, patch_size], [stride, stride, stride])
+            prediction_map[prediction_slices[i]] += img
 
-            if not tile_and_stitch:
-                img = _unpad(img, patch_halo)
-                img = torch.squeeze(torch.squeeze(img, 0), 0)
-                img = tensor2im(img)
-                normalization_map[prediction_slices[i]] += 1
-
-            else:
-                img = torch.squeeze(torch.squeeze(img, 0), 0)
-                img = (tensor2im(img) * 255).astype(np.uint8)
-
-            prediction_map[prediction_slices[i]] += img  # torch.squeeze(torch.squeeze(img, 0), 0)
-
-        if not tile_and_stitch:
-            prediction_map = prediction_map / normalization_map
-
-        else:
-            prediction_map = prediction_map[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1],0:data['A_full_size_raw'][2]]
+        prediction_map = prediction_map / normalization_map
 
         tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_map)
 
+
 # pad and unpad functions from pytorch 3d unet by wolny
+
 
 def _pad(m, patch_halo):
     if patch_halo is not None:
@@ -163,5 +134,5 @@ if __name__ == '__main__':
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
     opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-
+    opt.dataset_mode = 'patched_3d'
     inference(opt)

@@ -33,11 +33,13 @@ from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
 from util.util import tensor2im
-from data.SliceBuilder import build_slices_3d
+from data.SliceBuilder import build_slices
 import numpy as np
 import tifffile
-import math
 import torch
+from torch import nn
+from tqdm import tqdm
+from train import _adjust_patch_size
 
 try:
     import wandb
@@ -46,8 +48,10 @@ except ImportError:
 
 
 def inference(opt):
-    patch_size = opt.patch_size
-    #stride = opt.stride_A
+
+    #patch_size = opt.patch_size
+    #stride = opt.patch_size #opt.stride_A
+
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
     for x in range(1, len(model_settings) - 1):
@@ -57,24 +61,21 @@ def inference(opt):
     # disregarding if anything else is set in base_options.py
 
     opt.netG = dicti['netG']
-    opt.ngf = int(dicti['ngf'])
-    assert dicti['train_mode'] == '3d', "For 3D predictions, the model needs to be a 3D model. This model was not trained on 3D patches."
-    #opt.test_mode == '3d'
-    opt.dataset_mode = 'patched_3d'
+    if opt.netG.startswith('unet') or opt.netG.startswith('resnet'):
+        opt.ngf = int(dicti['ngf'])
+    assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
+    opt.test_mode == '2d'
 
-    # Need to still test this again
-    difference = 0
-    for i in range(2, int(opt.netG[5:])+2):
-        difference += 2 ** i
-    stride = patch_size - difference - 2
+    _adjust_patch_size(opt)
+    patch_size = opt.patch_size
+    stride = opt.patch_size #opt.stride_A
 
-    init_padding = int((patch_size - stride) / 2)
-
+    # print("patch_:", patch_size)
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
-    #init_padding = int((patch_size - stride) / 2)
+    patch_halo = (16, 16) # Makes an enormous difference in the quality of predictions
 
     # initialize logger
     if opt.use_wandb:
@@ -89,55 +90,79 @@ def inference(opt):
         transforms.ConvertImageDtype(dtype=torch.float32)
     ])
     for j, data in enumerate(dataset):
-        prediction_map = None
+        prediction_volume = []
+        normalization_volume = []
         data_is_array = False
+
         if type(data['A']) == np.ndarray:
             data_is_array = True
             input_list = data['A'][0]
         elif type(data['A']) == list:
             input_list = data['A']
-        for i in range(0, len(input_list)):
+        for i in tqdm(range(0, len(input_list)), desc ="Inference progress"):
             input = input_list[i]
             input = transform(input)
-
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
+            input = _pad(input, patch_halo)
 
             model.set_input(input)
             model.test()
             img = model.fake
+            if i % int(data['patches_per_slice']) == 0:
+                if i != 0:
+                    #prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                    prediction_volume.append(prediction_map)
+                    normalization_volume.append(normalization_map)
 
-            img = img[:, :, init_padding:-init_padding, init_padding:-init_padding, init_padding:-init_padding]
+                prediction_map = np.zeros((data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.float32)
+                normalization_map = np.zeros((data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.uint8)
+                prediction_slices = build_slices(prediction_map, [patch_size, patch_size], [stride, stride])
+                pred_index = 0
 
-            if prediction_map is None:
-                size_0 = stride * math.ceil(((data['A_full_size_pad'][0] - patch_size) / stride) + 1)  # for 190 use 64 instead of 38
-                size_1 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
-                size_2 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
-                prediction_map = np.zeros((size_0, size_1, size_2), dtype=np.uint8)
-
-                # prediction_map = torch.zeros(size_0, size_1, size_2, dtype=torch.float32, device="cuda")
-
-                prediction_slices = build_slices_3d(prediction_map, [stride, stride, stride], [stride, stride, stride])
-
+            img = _unpad(img, patch_halo)
             img = torch.squeeze(torch.squeeze(img, 0), 0)
-            img = (tensor2im(img) * 255).astype(np.uint8)
+            img = tensor2im(img)
+            normalization_map[prediction_slices[pred_index]] += 1
 
-            prediction_map[prediction_slices[i]] += img  # torch.squeeze(torch.squeeze(img, 0), 0)
+            prediction_map[prediction_slices[pred_index]] += img  # torch.squeeze(torch.squeeze(img, 0), 0)
+            pred_index += 1
 
-        prediction_map = prediction_map[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1],0:data['A_full_size_raw'][2]]
+            if i == len(input_list)-1:
+                #prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                prediction_volume.append(prediction_map)
+                normalization_volume.append(normalization_map)
 
-        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_map)
+        normalization_volume = np.asarray(normalization_volume)
+        prediction_volume = np.asarray(prediction_volume)
+        prediction_volume = prediction_volume / normalization_volume
 
+        prediction_volume = (255 * (prediction_volume - prediction_volume.min()) / ((prediction_volume.max() - prediction_volume.min()))).astype(np.uint8)
+
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)
+
+# pad and unpad functions from pytorch 3d unet by wolny
+
+def _pad(m, patch_halo):
+    if patch_halo is not None:
+        y, x = patch_halo
+        return nn.functional.pad(m, (y, y, x, x), mode='reflect')
+    return m
+
+
+def _unpad(m, patch_halo):
+    if patch_halo is not None:
+        y, x = patch_halo
+        return m[..., y:-y, x:-x]
+    return m
 
 if __name__ == '__main__':
     # read out sys.argv arguments and parse
     opt = TestOptions().parse()  # get test options
-    # hard-code some parameters for test
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1
-    opt.dataset_mode = 'patched_3d'
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
-    opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-
+    # opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
+    opt.dataset_mode = 'patched_2d'
     inference(opt)
