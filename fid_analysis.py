@@ -16,25 +16,32 @@ def fid_analysis(opt):
     for x in range(1, len(model_settings) - 1):
         dicti[model_settings[x].split(':')[0].replace(' ', '')] = model_settings[x].split(':')[1].replace(' ', '')
 
-    if dicti['train_mode'] == '3d' and dicti['netG'].startswith('unet'):
-        from test_3D import inference
-        opt.dataset_mode = 'patched_3d'
-    elif dicti['train_mode'] == '3d' and not dicti['netG'].startswith('unet'):
-        from test_3D_resnet import inference
-        opt.dataset_mode = 'patched_3d'
-    elif dicti['train_mode'] == '2d' and dicti['netG'].startswith('unet'):
+    # if dicti['train_mode'] == '3d' and dicti['netG'].startswith('unet'):
+    #     from test_3D import inference
+    #     opt.dataset_mode = 'patched_3d'
+    # elif dicti['train_mode'] == '3d' and not dicti['netG'].startswith('unet'):
+    #     from test_3D_resnet import inference
+    #     opt.dataset_mode = 'patched_3d'
+    # elif dicti['train_mode'] == '2d' and dicti['netG'].startswith('unet'):
+    #     from test_2D import inference
+    #     from test_2_5D import inference_2_5D
+    #     opt.dataset_mode = 'patched_2d'
+    # elif dicti['train_mode']=='2d' and not dicti['netG'].startswith('unet'):
+    #     from test_2D_resnet import inference
+    #     from test_2_5D_resnet import inference_2_5D_resnet
+    #     opt.dataset_mode = 'patched_2d'
+    # else:
+    #     if dicti['netG'].startswith('unet'):
+    #         from test_2D import inference
+    #     else:
+    #         from test_2D_resnet import inference
+
+    if dicti['netG'].startswith('unet'):
         from test_2D import inference
-        from test_2_5D import inference_2_5D
-        opt.dataset_mode = 'patched_2d'
-    elif dicti['train_mode']=='2d' and not dicti['netG'].startswith('unet'):
+    elif dicti['netG'].startswith('resnet'):
         from test_2D_resnet import inference
-        from test_2_5D_resnet import inference_2_5D_resnet
-        opt.dataset_mode = 'patched_2d'
-    else:
-        if dicti['netG'].startswith('unet'):
-            from test_2D import inference
-        else:
-            from test_2D_resnet import inference
+
+    opt.dataset_mode = 'patched_2d'
 
     opt.patch_size = int(dicti['patch_size'])
     all_fid_scores = {}
@@ -152,5 +159,10 @@ if __name__ == '__main__':
     opt.preprocess = 'none'
     opt.input_nc = 1
     opt.output_nc = 1
+    opt.results_dir = '/fast/AG_Kainmueller/data/domain_adaptation/Models/2D_models/HeLa_NMR/fid_results'
+    opt.domain_B = '/fast/AG_Kainmueller/data/domain_adaptation/HeLa_NMR/trainB'
+    opt.target_domain_B_fid_file = '/fast/AG_Kainmueller/data/domain_adaptation/FID_Fingerprints/raw_data/NMR_hypoxic_FID_fingerprint.npz'
+    opt.target_domain_A_fid_file = '/fast/AG_Kainmueller/data/domain_adaptation/FID_Fingerprints/raw_data/HeLa_FID_fingerprint.npz'
+    opt.eval_direction = 'both-ways'
 
     fid_analysis(opt)
