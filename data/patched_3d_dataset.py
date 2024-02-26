@@ -4,6 +4,7 @@ import tifffile
 from .SliceBuilder import build_slices_3d
 from .base_dataset_3d import BaseDataset3D, get_transform
 from .image_folder import make_dataset
+import math
 
 
 def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
@@ -36,10 +37,19 @@ class patcheddataset_3d(BaseDataset3D):
 
         self.transform = get_transform(opt)#, grayscale=(input_nc == 1))
 
-        self.stride = np.asarray([opt.stride_A, opt.stride_A, opt.stride_A])
-
+        #self.stride = np.asarray([opt.stride_A, opt.stride_A, opt.stride_A])
 
         self.patch_size = np.asarray([opt.patch_size, opt.patch_size, opt.patch_size])
+
+        if opt.netG.startswith('unet'):
+            difference = 0
+            for i in range(2, int(math.log(int(opt.netG[5:]), 2)) + 2):
+                difference += 2 ** i
+            stride = opt.patch_size - difference - 2
+            self.stride = np.asarray([stride, stride, stride])
+        else:
+            self.stride = self.patch_size
+
 
         self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
 

@@ -3,6 +3,7 @@ from .image_folder import make_dataset
 import torchvision.transforms as transforms
 import tifffile
 import torch
+import math
 from .SliceBuilder import build_slices
 import numpy as np
 
@@ -33,7 +34,7 @@ class patched2ddataset(BaseDataset2D):
 
         if opt.netG.startswith('unet'):
             difference = 0
-            for i in range(2, int(opt.netG[5:]) + 2):
+            for i in range(2, int(math.log(int(opt.netG[5:]), 2)) + 2):
                 difference += 2 ** i
             stride = opt.patch_size - difference - 2
             self.stride = np.asarray([stride, stride])
