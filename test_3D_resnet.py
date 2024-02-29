@@ -37,7 +37,10 @@ from data.SliceBuilder import build_slices_3d
 import numpy as np
 import tifffile
 import torch
+import math
 from torch import nn
+from tqdm import tqdm
+
 
 try:
     import wandb
@@ -47,7 +50,19 @@ except ImportError:
 
 def inference(opt):
     patch_size = opt.patch_size
-    stride = opt.patch_size#opt.stride_A
+    stride = opt.patch_size - 8
+
+    dicti = {}
+    model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
+    for x in range(1, len(model_settings) - 1):
+        dicti[model_settings[x].split(':')[0].replace(' ', '')] = model_settings[x].split(':')[1].replace(' ', '')
+
+    # Here, we make sure that the loaded model will use the same backbone as in training,
+    # disregarding if anything else is set in base_options.py
+
+    opt.netG = dicti['netG']
+    opt.ngf = int(dicti['ngf'])
+    assert dicti['train_mode'] == '3d', "For 3D predictions, the model needs to be a 3D model. This model was not trained on 3D patches."
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
@@ -75,7 +90,7 @@ def inference(opt):
         elif type(data['A']) == list:
             input_list = data['A']
 
-        for i in range(0, len(input_list)):
+        for i in tqdm(range(0, len(input_list)), desc="Inference progress"):
             input = input_list[i]
             input = transform(input)
 
@@ -103,6 +118,8 @@ def inference(opt):
 
         prediction_map = prediction_map / normalization_map
 
+        prediction_map = (255 * (prediction_map - prediction_map.min()) / ((prediction_map.max() - prediction_map.min()))).astype(np.uint8)
+
         tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_map)
 
 
@@ -128,6 +145,8 @@ def _unpad(m, patch_halo):
 if __name__ == '__main__':
     # read out sys.argv arguments and parse
     opt = TestOptions().parse()  # get test options
+    opt.input_nc = 1
+    opt.output_nc = 1
     # hard-code some parameters for test
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1

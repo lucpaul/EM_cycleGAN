@@ -36,6 +36,7 @@ import numpy as np
 import tifffile
 import math
 import torch
+from tqdm import tqdm
 
 try:
     import wandb
@@ -43,17 +44,7 @@ except ImportError:
     print('Warning: wandb package cannot be found. The option "--use_wandb" will result in error.')
 
 def inference_2_5D(opt):
-    # opt = TestOptions().parse()  # get test options
-    # hard-code some parameters for test
     patch_size = opt.patch_size
-    #stride = opt.stride_A
-
-    # opt.num_threads = 0   # test code only supports num_threads = 0
-    # opt.batch_size = 1    # test code only supports batch_size = 1
-    # opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
-    # opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
-    # opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
-
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
     for x in range(1, len(model_settings) - 1):
@@ -65,17 +56,16 @@ def inference_2_5D(opt):
     opt.netG = dicti['netG']
     opt.ngf = int(dicti['ngf'])
     assert dicti['train_mode'] == '2d', "For 2.5D (orthoslice) predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
-    #opt.test_mode == '2_5d'
+    opt.test_mode == '2_5d'
     #opt.dataset_mode = 'patched_2_5d'
 
     # A quick calculation to ensure tile-and-stitch compatible stride for the given patch size and backbone
     difference = 0
-    for i in range(2, int(opt.netG[5:]) + 2):
+    for i in range(2, int(math.log(int(opt.netG[5:]), 2) + 2)):
         difference += 2 ** i
     stride = patch_size - difference - 2
 
     init_padding = int((patch_size - stride) / 2)
-    #dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset = create_dataset(opt)
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
@@ -84,11 +74,6 @@ def inference_2_5D(opt):
         wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
         wandb_run._label(repo='CycleGAN-and-pix2pix')
 
-    # create a website
-    web_dir = os.path.join(opt.results_dir, opt.name, '{}_{}'.format(opt.phase, opt.epoch))  # define the website directory
-    if opt.load_iter > 0:  # load_iter is 0 by default
-        web_dir = '{:s}_iter{:d}'.format(web_dir, opt.load_iter)
-    print('creating web directory', web_dir)
     model.eval()
     for j, data in enumerate(dataset):
         prediction_volume = []
@@ -105,15 +90,14 @@ def inference_2_5D(opt):
                 full_pad_dim_1 = data['A_full_size_pad'][2]
                 full_pad_dim_2 = data['A_full_size_pad'][0]
             print('predictions for orthopatches: ', direction)
-            for i in range(0, len(data[direction])):
+            for i in tqdm(range(0, len(data[direction])), desc="Inference progress"):
                 size_0 = stride * math.ceil(((full_pad_dim_1 - patch_size) / stride) + 1)
                 size_1 = stride * math.ceil(((full_pad_dim_2 - patch_size) / stride) + 1)
                 input = data[direction][i] # instead of A
                 model.set_input(input)
                 model.test()
                 img = model.fake
-                img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]#img = img[:, :, 63:-63, 63:-63]
-                #img = tensor2im(img)  # + 1) / 2 * 255
+                img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
                 if i % data['patches_per_slice'+"_"+direction] == 0:
                     if i != 0:
                         if direction == 'xy':
@@ -125,13 +109,13 @@ def inference_2_5D(opt):
 
                         dir_volume.append(prediction_map)
 
-                    prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
+                    prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
                     prediction_slices = build_slices(prediction_map, [stride,stride], [stride,stride])
                     pred_index = 0
 
                 img = torch.squeeze(torch.squeeze(img, 0), 0)
                 img = tensor2im(img)
-                img = (tensor2im(img) * 255).astype(np.uint8)
+                #img = (tensor2im(img) * 255).astype(np.uint8)
 
                 prediction_map[prediction_slices[pred_index]] += img
                 pred_index += 1
@@ -158,6 +142,8 @@ if __name__ == '__main__':
     opt = TestOptions().parse()
     opt.num_threads = 0  # test code only supports num_threads = 0
     opt.batch_size = 1  # test code only supports batch_size = 1
+    opt.input_nc = 1
+    opt.output_nc = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True  # no flip; comment this line if results on flipped images are needed.
     opt.dataset_mode = 'patched_2_5d'

@@ -2,7 +2,7 @@ import os
 import torch
 from collections import OrderedDict
 from abc import ABC, abstractmethod
-from . import networks_2d
+#from . import networks_2d
 
 
 class BaseModel(ABC):
@@ -43,6 +43,7 @@ class BaseModel(ABC):
         self.image_paths = []
         self.metric = 0  # used for learning rate policy 'plateau'
 
+
     @staticmethod
     def modify_commandline_options(parser, is_train):
         """Add new model-specific options, and rewrite default values for existing options.
@@ -82,8 +83,17 @@ class BaseModel(ABC):
             opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         if self.isTrain:
-            self.schedulers = [networks_2d.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
+            if opt.train_mode == '3d':
+                from . import networks_3d as networks
+            else:
+                from . import networks_3d as networks
+
+            self.schedulers = [networks.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
         if not self.isTrain or opt.continue_train:
+            if opt.test_mode == '3d':
+                from . import networks_3d as networks
+            else:
+                from . import networks_2d as networks
             load_suffix = 'iter_%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
             self.load_networks(load_suffix)
         self.print_networks(opt.verbose)
@@ -211,7 +221,11 @@ class BaseModel(ABC):
                 else:
                     for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
                         self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
-                    net.load_state_dict(state_dict, strict=False)
+                    try:
+                        net.load_state_dict(state_dict, strict=False)
+                    except RuntimeError as e:
+                        print('Ignoring "' + str(e) + '"')
+
 
     def print_networks(self, verbose):
         """Print the total number of parameters in the network and (if verbose) network architecture

@@ -37,6 +37,7 @@ import tifffile
 import math
 from torchvision import transforms
 import torch
+from tqdm import tqdm
 
 try:
     import wandb
@@ -46,7 +47,6 @@ except ImportError:
 
 def inference(opt):
     patch_size = opt.patch_size
-    #stride = opt.stride_A
 
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
@@ -64,7 +64,7 @@ def inference(opt):
 
     # Need to still test this again
     difference = 0
-    for i in range(2, int(opt.netG[5:])+2):
+    for i in range(2, int(math.log(int(opt.netG[5:]), 2)+2)):
         difference += 2 ** i
     stride = patch_size - difference - 2
 
@@ -78,11 +78,6 @@ def inference(opt):
         wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
         wandb_run._label(repo='CycleGAN-and-pix2pix')
 
-    # create a website
-    web_dir = os.path.join(opt.results_dir, opt.name, '{}_{}'.format(opt.phase, opt.epoch))  # define the website directory
-    if opt.load_iter > 0:  # load_iter is 0 by default
-        web_dir = '{:s}_iter{:d}'.format(web_dir, opt.load_iter)
-    print('creating web directory', web_dir)
     model.eval()
     transform = transforms.Compose([
         transforms.ConvertImageDtype(dtype=torch.float32)
@@ -97,8 +92,9 @@ def inference(opt):
         elif type(data['A']) == list:
             input_list = data['A']
         print("input_patches: ", len(input_list))
-        for i in range(0, len(input_list)):
+        for i in tqdm(range(0, len(input_list)), desc="Inference progress"):
             input = input_list[i]
+
             input = transform(input)
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
@@ -110,6 +106,7 @@ def inference(opt):
 
             size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
             size_1 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
+
 
             if i % int(data['patches_per_slice']) == 0:
                 if i != 0:
@@ -140,8 +137,9 @@ if __name__ == '__main__':
     opt = TestOptions().parse()
     opt.num_threads = 0  # test code only supports num_threads = 0
     opt.batch_size = 1  # test code only supports batch_size = 1
+    opt.input_nc = 1
+    opt.output_nc = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True  # no flip; comment this line if results on flipped images are needed.
-    # opt.display_id = -1  # no visdom display; the test code saves the results to a HTML file.
     opt.dataset_mode = 'patched_2d'
     inference(opt)

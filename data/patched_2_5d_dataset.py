@@ -7,11 +7,13 @@ from .SliceBuilder import build_slices
 import numpy as np
 import math
 
+
 def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
     number_of_patches = np.ma.ceil(((volume_shape + init_padding - input_patch_size) / stride) + 1)
     volume_new = ((np.asarray(number_of_patches))*stride) + input_patch_size
     new_padding = volume_new - volume_shape - init_padding
     return new_padding.astype(int)
+
 
 class patched25ddataset(BaseDataset2D):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
@@ -27,10 +29,7 @@ class patched25ddataset(BaseDataset2D):
         """
         BaseDataset2D.__init__(self, opt)
         self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
-        #input_nc = self.opt.output_nc if self.opt.direction == 'BtoA' else self.opt.input_nc
-        self.transform = get_transform(opt)#, grayscale=(input_nc == 1))
-        #self.stride = np.asarray([opt.stride_A, opt.stride_A, opt.stride_A])
-
+        self.transform = get_transform(opt)
         self.patch_size = np.asarray([opt.patch_size, opt.patch_size, opt.patch_size])
 
         if opt.netG.startswith('unet'):
@@ -39,10 +38,11 @@ class patched25ddataset(BaseDataset2D):
                 difference += 2 ** i
             stride = opt.patch_size - difference - 2
             self.stride = np.asarray([stride, stride, stride])
-        else:
+            self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
+        elif opt.netG.startswith('resnet'):
+            opt.netG = opt.netG[:14]
             self.stride = self.patch_size
-
-        self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
+            self.init_padding = np.asarray([0, 0, 0])
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -77,7 +77,7 @@ class patched25ddataset(BaseDataset2D):
         A_img_full_2 = torch.permute(A_img_full, (2, 0, 1))
         A_img_full_3 = torch.permute(A_img_full, (1, 2, 0))
         print("Creating orthopatches xy")
-        for i in range(self.init_padding[0], A_img_size_pad[0]-z1+1):
+        for i in range(self.init_padding[0], A_img_size_pad[0]-z1+1):#range(0, A_img_size_pad[0]): # for naive unet stitching
             A_img_slice = A_img_full[i]
             slices = build_slices(A_img_slice, [self.patch_size[1], self.patch_size[2]], [self.stride[1], self.stride[2]])
             num_patches_per_slice = len(slices)
@@ -88,7 +88,7 @@ class patched25ddataset(BaseDataset2D):
 
         print("Creating orthopatches zy")
         patches_2 = []
-        for j in range(self.init_padding[2], A_img_size_pad[2]-x1+1):
+        for j in range(self.init_padding[2], A_img_size_pad[2]-x1+1):#range(0, A_img_size_pad[2])
             A_img_slice = A_img_full_2[j]
             slices = build_slices(A_img_slice, [self.patch_size[2], self.patch_size[2]], [self.stride[2], self.stride[2]])
             num_patches_per_slice_2 = len(slices)
@@ -99,7 +99,7 @@ class patched25ddataset(BaseDataset2D):
 
         print("Creating orthopatches zx")
         patches_3 = []
-        for k in range(self.init_padding[1], A_img_size_pad[1]-y1+1):
+        for k in range(self.init_padding[1], A_img_size_pad[1]-y1+1):#range(0, A_img_size_pad[1]):
             A_img_slice = A_img_full_3[k]
             slices = build_slices(A_img_slice, [self.patch_size[1], self.patch_size[1]], [self.stride[1], self.stride[1]])
             num_patches_per_slice_3 = len(slices)
@@ -107,7 +107,6 @@ class patched25ddataset(BaseDataset2D):
                 A_img_patch = A_img_slice[slice]
                 A_img_patch = torch.unsqueeze(A_img_patch, 0)
                 patches_3.append(A_img_patch)
-
 
         return {'xy': patches, 'zy': patches_2, 'zx': patches_3,
                 'A_paths': A_path, 'A_full_size_raw': A_img_size_raw,

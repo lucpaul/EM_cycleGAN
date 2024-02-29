@@ -1,8 +1,6 @@
 from .base_dataset_2d import BaseDataset2D, get_transform
 from .image_folder import make_dataset
-import torchvision.transforms as transforms
 import tifffile
-import torch
 import math
 from .SliceBuilder import build_slices
 import numpy as np
@@ -27,9 +25,7 @@ class patched2ddataset(BaseDataset2D):
         """
         BaseDataset2D.__init__(self, opt)
         self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
-        #input_nc = self.opt.output_nc if self.opt.direction == 'BtoA' else self.opt.input_nc
-        self.transform = get_transform(opt)#, grayscale=(input_nc == 1))
-        #self.stride = np.asarray([opt.stride_A, opt.stride_A])
+        self.transform = get_transform(opt)
         self.patch_size = np.asarray([opt.patch_size, opt.patch_size])
 
         if opt.netG.startswith('unet'):
@@ -40,6 +36,8 @@ class patched2ddataset(BaseDataset2D):
             self.stride = np.asarray([stride, stride])
         else:
             self.stride = self.patch_size
+
+        #self.stride = self.patch_size
         #print("dataset: ", self.patch_size)
 
         assert opt.patch_size >= opt.stride_A, f"Images can only be stitched if patch size is at least equal to stride, but not smaller. " \
@@ -102,33 +100,6 @@ class patched2ddataset(BaseDataset2D):
         A_size_pad = img_sizes[1]
 
         return {'A': patches, 'A_paths': A_path, 'A_full_size_raw': A_size_raw, 'A_full_size_pad': A_size_pad, 'patches_per_slice': patches_per_slice}
-
-        # A_path = self.A_paths[index]
-        # transform = transforms.Compose([
-        #     transforms.ToTensor()
-        # ])
-        #
-        # A_img_full = tifffile.imread(A_path)
-        # A_img_size_raw = A_img_full.shape
-        # #print("raw:", A_img_size_raw)
-        # z1, y1, x1 = _calc_padding(A_img_size_raw, init_padding=np.asarray([63,63,63]), input_patch_size=np.asarray([254,254,254]), stride=np.asarray([128,128,128]))
-        # A_img_full = np.pad(A_img_full, pad_width=((63, z1), (63, y1), (63, x1)), mode="reflect")
-        # A_img_full = transform(A_img_full)
-        # A_img_full = torch.permute(A_img_full, (1, 2, 0))
-        # A_img_size_pad = A_img_full.shape
-        # patches = []
-        #
-        # #for i in range(63, A_img_size_pad[0]-z1+1):
-        # for i in range(63, A_img_size_pad[0]-z1+1):
-        #     A_img_slice = A_img_full[i]
-        #     slices = build_slices(A_img_slice, [254, 254], [128, 128])
-        #     num_patches_per_slice = len(slices)
-        #     for slice in slices:
-        #         A_img_patch = A_img_slice[slice]
-        #         A_img_patch = torch.unsqueeze(A_img_patch, 0)
-        #         patches.append(A_img_patch)
-        #
-        # return {'A': patches, 'A_paths': A_path, 'A_full_size_raw': A_img_size_raw, 'A_full_size_pad': A_img_size_pad, 'patches_per_slice_A': len(slices)}
 
     def __len__(self):
         """Return the total number of images in the dataset."""

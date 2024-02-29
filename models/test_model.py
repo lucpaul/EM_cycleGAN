@@ -44,11 +44,12 @@ class TestModel(BaseModel):
         self.visual_names = ['real', 'fake']
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>
         self.model_names = ['G' + opt.model_suffix]  # only generator is needed.
-        if opt.test_mode == ('2d' or '2_5d'):
+        if opt.test_mode == '2d' or opt.test_mode == '2.5d':
             from . import networks_2d as networks
         elif opt.test_mode == '3d':
             from . import networks_3d as networks
 
+        print(opt.test_mode)
         self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG,
                                       opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 

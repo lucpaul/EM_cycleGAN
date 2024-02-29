@@ -4,7 +4,6 @@ import numpy as np
 import os
 from .base_dataset_2d import BaseDataset2D, get_transform
 from .image_folder import make_dataset
-from PIL import Image
 from .SliceBuilder import build_slices, build_slices_fast
 import torchvision.transforms as transforms
 import tifffile

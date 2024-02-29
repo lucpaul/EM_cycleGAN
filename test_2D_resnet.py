@@ -62,15 +62,18 @@ def inference(opt):
 
     opt.netG = dicti['netG']
     if opt.netG.startswith('unet') or opt.netG.startswith('resnet'):
+        if opt.netG.startswith('resnet'):
+            opt.netG = opt.netG[:14]
+            #opt.netG = 'resnet_9blocks'
         opt.ngf = int(dicti['ngf'])
-    assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
-    opt.test_mode == '2d'
+    #assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
+    #opt.test_mode == '2d'
 
-    _adjust_patch_size(opt)
+    #_adjust_patch_size(opt)
     patch_size = opt.patch_size
-    stride = opt.patch_size #opt.stride_A
+    stride = opt.patch_size - 8 #opt.stride_A
 
-    # print("patch_:", patch_size)
+    print("patch_:", patch_size)
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
@@ -159,6 +162,8 @@ def _unpad(m, patch_halo):
 if __name__ == '__main__':
     # read out sys.argv arguments and parse
     opt = TestOptions().parse()  # get test options
+    opt.input_nc = 1
+    opt.output_nc = 1
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.

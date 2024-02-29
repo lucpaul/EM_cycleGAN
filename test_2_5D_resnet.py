@@ -48,7 +48,7 @@ except ImportError:
 
 def inference_2_5D_resnet(opt):
     patch_size = opt.patch_size
-    stride = opt.patch_size#opt.stride_A
+    stride = opt.patch_size
 
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
@@ -128,7 +128,7 @@ def inference_2_5D_resnet(opt):
                         dir_volume.append(prediction_map)
                         normalization_volume.append(normalization_map)
 
-                    prediction_map = np.zeros((full_raw_dim_1, full_raw_dim_2), dtype=np.uint8)
+                    prediction_map = np.zeros((full_raw_dim_1, full_raw_dim_2), dtype=np.float32)
                     normalization_map = np.zeros((full_raw_dim_1, full_raw_dim_2), dtype=np.uint8)
                     prediction_slices = build_slices(prediction_map, [patch_size, patch_size], [stride, stride])
                     pred_index = 0
@@ -136,7 +136,6 @@ def inference_2_5D_resnet(opt):
                 img = _unpad(img, patch_halo)
                 img = torch.squeeze(torch.squeeze(img, 0), 0)
                 img = tensor2im(img)
-                img = (tensor2im(img) * 255).astype(np.uint8)
 
                 normalization_map[prediction_slices[pred_index]] += 1
                 prediction_map[prediction_slices[pred_index]] += img  # torch.squeeze(torch.squeeze(img, 0), 0)
@@ -188,6 +187,8 @@ if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1
+    opt.input_nc = 1
+    opt.output_nc = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
     # opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.

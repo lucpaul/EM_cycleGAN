@@ -20,7 +20,7 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
 
     return new_padding.astype(int)
 
-class patcheddataset_3d(BaseDataset3D):
+class patched3ddataset(BaseDataset3D):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
 
     It can be used for generating CycleGAN results only for one side with the model option '-model test'.
@@ -37,8 +37,6 @@ class patcheddataset_3d(BaseDataset3D):
 
         self.transform = get_transform(opt)#, grayscale=(input_nc == 1))
 
-        #self.stride = np.asarray([opt.stride_A, opt.stride_A, opt.stride_A])
-
         self.patch_size = np.asarray([opt.patch_size, opt.patch_size, opt.patch_size])
 
         if opt.netG.startswith('unet'):
@@ -50,6 +48,7 @@ class patcheddataset_3d(BaseDataset3D):
         else:
             self.stride = self.patch_size
 
+        #self.stride = self.patch_size - 8
 
         self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
 

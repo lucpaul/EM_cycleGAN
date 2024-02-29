@@ -38,6 +38,7 @@ import numpy as np
 import tifffile
 import math
 import torch
+from tqdm import tqdm
 
 try:
     import wandb
@@ -47,7 +48,6 @@ except ImportError:
 
 def inference(opt):
     patch_size = opt.patch_size
-    #stride = opt.stride_A
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
     for x in range(1, len(model_settings) - 1):
@@ -60,17 +60,19 @@ def inference(opt):
     opt.ngf = int(dicti['ngf'])
     assert dicti['train_mode'] == '3d', "For 3D predictions, the model needs to be a 3D model. This model was not trained on 3D patches."
     #opt.test_mode == '3d'
-    opt.dataset_mode = 'patched_3d'
+    #opt.dataset_mode = 'patched_3d'
 
     # Need to still test this again
     difference = 0
-    for i in range(2, int(opt.netG[5:])+2):
+    for i in range(2, int(math.log(int(opt.netG[5:]), 2)+2)):
         difference += 2 ** i
     stride = patch_size - difference - 2
+    #print(stride)
 
     init_padding = int((patch_size - stride) / 2)
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
+    #print(opt.test_mode)
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
@@ -96,7 +98,7 @@ def inference(opt):
             input_list = data['A'][0]
         elif type(data['A']) == list:
             input_list = data['A']
-        for i in range(0, len(input_list)):
+        for i in tqdm(range(0, len(input_list)), desc="Inference progress"):
             input = input_list[i]
             input = transform(input)
 
@@ -133,6 +135,9 @@ if __name__ == '__main__':
     # read out sys.argv arguments and parse
     opt = TestOptions().parse()  # get test options
     # hard-code some parameters for test
+    opt.input_nc = 1
+    opt.output_nc = 1
+    opt.test_mode == '3d'
     opt.num_threads = 0   # test code only supports num_threads = 0
     opt.batch_size = 1    # test code only supports batch_size = 1
     opt.dataset_mode = 'patched_3d'
