@@ -22,8 +22,15 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
 
 class patched3ddataset(BaseDataset3D):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
+    When the test_script for the unet model is run, it patches the dataset for into 3d patches with a hard-coded
+    stride that is exactly equal to the output shape of the unet which allows the results to be tiled-and-stitched without artefacts.
 
-    It can be used for generating CycleGAN results only for one side with the model option '-model test'.
+    If run with a different backbone, the stride is hardcoded to be smaller than or equal to the patch size
+    and results are stitched from the 3d patches in a standard approach by averaging overlapping patches.
+
+    This dataset is used during inference for the test_3D.py and test_3D_resnet.py scripts.
+
+    It can be called during inference using the flag --test_mode 3d
     """
 
     def __init__(self, opt):
@@ -47,8 +54,6 @@ class patched3ddataset(BaseDataset3D):
             self.stride = np.asarray([stride, stride, stride])
         else:
             self.stride = self.patch_size
-
-        #self.stride = self.patch_size - 8
 
         self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
 

@@ -635,10 +635,10 @@ class SwinUnetrGenerator(nn.Module):
                                      in_channels=input_nc,
                                      out_channels=output_nc,
                                      feature_size=ngf,
-                                     use_checkpoint=True)
+                                     use_checkpoint=True,
+                                     spatial_dims=3)
 
-        self.net = model
-
+        self.model = model
     def forward(self, input):
         """Standard forward"""
-        return self.net(input)
+        return self.model(input)

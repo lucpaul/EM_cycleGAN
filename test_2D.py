@@ -1,31 +1,18 @@
-"""General-purpose test script for image-to-image translation.
+"""An inference script for image-to-image translation with 2D patches, using tile-and-stitch.
 
-Once you have trained your model with train.py, you can use this script to test the model.
-It will load a saved model from '--checkpoints_dir' and save the results to '--results_dir'.
+Once you have trained your 2d model with train.py, using a unet backbone, you can use this script to test the model.
+It will load a saved model from '--name' and save the results to '--results_dir'.
 
-It first creates model and dataset given the option. It will hard-code some parameters.
-It then runs inference for '--num_test' images and save results to an HTML file.
+It first creates a model and appropriate dataset (patched_2d_dataset) automatically. It will hard-code some parameters.
+It then runs inference for the images in the dataroot, assembling full volumes by performing inference on volume patches
+from which the prediction is then assembled.
 
-Example (You need to train models first or download pre-trained models from our website):
-    Test a CycleGAN model (both sides):
-        python test.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
+Example (You need to train models first):
+    Test a CycleGAN model:
+        python test_2D.py --dataroot path/to/domain_A --name path/to/my_cyclegan_model --epoch 1 --model_suffix _A
+                          --patch_size 190 --test_mode 2d --results_dir path/to/results
 
-    Test a CycleGAN model (one side only):
-        python test.py --dataroot datasets/horse2zebra/testA --name horse2zebra_pretrained --model test --no_dropout
-
-    The option '--model test' is used for generating CycleGAN results only for one side.
-    This option will automatically set '--dataset_mode single', which only loads the images from one set.
-    On the contrary, using '--model cycle_gan' requires loading and generating results in both directions,
-    which is sometimes unnecessary. The results will be saved at ./results/.
-    Use '--results_dir <directory_path_to_save_result>' to specify the results directory.
-
-    Test a pix2pix model:
-        python test.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
-
-See options/base_options.py and options/test_options.py for more test options.
-See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
-See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
-"""
+See options/base_options.py and options/test_options.py for more test options."""
 import os
 from options.test_options import TestOptions
 from data import create_dataset
@@ -38,6 +25,8 @@ import math
 from torchvision import transforms
 import torch
 from tqdm import tqdm
+from util.util import adjust_patch_size
+
 
 try:
     import wandb
@@ -46,7 +35,7 @@ except ImportError:
 
 
 def inference(opt):
-    patch_size = opt.patch_size
+    #patch_size = opt.patch_size
 
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
@@ -60,7 +49,9 @@ def inference(opt):
     if opt.netG.startswith('unet') or opt.netG.startswith('resnet'):
         opt.ngf = int(dicti['ngf'])
     assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
-    #opt.test_mode == '2d'
+
+    adjust_patch_size(opt)
+    patch_size = opt.patch_size
 
     # Need to still test this again
     difference = 0
@@ -118,7 +109,7 @@ def inference(opt):
                 pred_index = 0
 
             img = torch.squeeze(torch.squeeze(img, 0), 0)
-            img = tensor2im(img)
+            #img = tensor2im(img)
             img = (tensor2im(img) * 255).astype(np.uint8)
 
             prediction_map[prediction_slices[pred_index]] += img
@@ -143,3 +134,4 @@ if __name__ == '__main__':
     opt.no_flip = True  # no flip; comment this line if results on flipped images are needed.
     opt.dataset_mode = 'patched_2d'
     inference(opt)
+    TestOptions().save_options(opt)

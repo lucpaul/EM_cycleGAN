@@ -10,13 +10,11 @@ import numpy as np
 
 class patchedunaligned3ddataset(BaseDataset3D):
     """
-    This dataset class can load unaligned/unpaired datasets.
+    This dataset class can load unaligned/unpaired datasets and is used during training of a 3d model.
 
     It requires two directories to host training images from domain A '/path/to/data/trainA'
     and from domain B '/path/to/data/trainB' respectively.
     You can train the model with the dataset flag '--dataroot /path/to/data'.
-    Similarly, you need to prepare two directories:
-    '/path/to/data/testA' and '/path/to/data/testB' during test time.
     """
 
     def __init__(self, opt):
@@ -34,12 +32,12 @@ class patchedunaligned3ddataset(BaseDataset3D):
         self.transform_A = get_transform(self.opt)
         self.transform_B = get_transform(self.opt)
 
-        self.patch_size = [opt.patch_size, opt.patch_size, opt.patch_size]  # [190, 190, 190]
-        self.stride_A = [opt.stride_A, opt.stride_A, opt.stride_A]  # [180, 180, 180]
-        self.stride_B = [opt.stride_B, opt.stride_B, opt.stride_B]  # [200, 200, 200]
+        self.patch_size = [opt.patch_size, opt.patch_size, opt.patch_size]
+        self.stride_A = [opt.stride_A, opt.stride_A, opt.stride_A]
+        self.stride_B = [opt.stride_B, opt.stride_B, opt.stride_B]
 
         self.filter_A = 0.1
-        self.filter_B = 0.01
+        self.filter_B = 0.1
 
         self.all_patches_A = self.build_patches(self.A_paths, self.stride_A, self.filter_A)
 
@@ -54,9 +52,9 @@ class patchedunaligned3ddataset(BaseDataset3D):
         transform = transforms.Compose([
             transforms.ToTensor()
         ])
-        #start = time.time()
+
         for image_path in image_paths:
-            img = tifffile.imread(image_path)#, out='memmap')
+            img = tifffile.imread(image_path)
             img = transform(img)
 
             img = torch.permute(img, (1, 2, 0))
@@ -78,7 +76,7 @@ class patchedunaligned3ddataset(BaseDataset3D):
         # For now, by choosing the 5% (?) of patches with the lowest standard deviation in pixel values,
         # which presumably contain the least insightful structures.
 
-        print("filtering out the shit patches")
+        print("filtering out the worst patches")
         stdevs = torch.squeeze(torch.std(all_patches, dim=[2, 3, 4]), dim=1)
         index = torch.arange(stdevs.shape[0])
         index[stdevs < torch.quantile(stdevs, filter, dim=None, keepdim=True, interpolation="nearest")] = -1

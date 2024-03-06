@@ -1,51 +1,62 @@
-
-<img src='imgs/horse2zebra.gif' align="right" width=384>
-
 <br><br><br>
 
-# CycleGAN and pix2pix in PyTorch
+# A minimal CycleGAN for image-to-image translation of volumetric data
 
-**New**:  Please check out [contrastive-unpaired-translation](https://github.com/taesungp/contrastive-unpaired-translation) (CUT), our new unpaired image-to-image translation model that enables fast and memory-efficient training.
-
-We provide PyTorch implementations for both unpaired and paired image-to-image translation.
-
-The code was written by [Jun-Yan Zhu](https://github.com/junyanz) and [Taesung Park](https://github.com/taesungp), and supported by [Tongzhou Wang](https://github.com/SsnL).
-
-This PyTorch implementation produces results comparable to or better than our original Torch software. If you would like to reproduce the same results as in the papers, check out the original [CycleGAN Torch](https://github.com/junyanz/CycleGAN) and [pix2pix Torch](https://github.com/phillipi/pix2pix) code in Lua/Torch.
-
-**Note**: The current software works well with PyTorch 1.4. Check out the older [branch](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/tree/pytorch0.3.1) that supports PyTorch 0.1-0.3.
-
-You may find useful information in [training/test tips](docs/tips.md) and [frequently asked questions](docs/qa.md). To implement custom models and datasets, check out our [templates](#custom-model-and-dataset). To help users better understand and adapt our codebase, we provide an [overview](docs/overview.md) of the code structure of this repository.
-
-**CycleGAN: [Project](https://junyanz.github.io/CycleGAN/) |  [Paper](https://arxiv.org/pdf/1703.10593.pdf) |  [Torch](https://github.com/junyanz/CycleGAN) |
-[Tensorflow Core Tutorial](https://www.tensorflow.org/tutorials/generative/cyclegan) | [PyTorch Colab](https://colab.research.google.com/github/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/CycleGAN.ipynb)**
-
-<img src="https://junyanz.github.io/CycleGAN/images/teaser_high_res.jpg" width="800"/>
-
-**Pix2pix:  [Project](https://phillipi.github.io/pix2pix/) |  [Paper](https://arxiv.org/pdf/1611.07004.pdf) |  [Torch](https://github.com/phillipi/pix2pix) |
-[Tensorflow Core Tutorial](https://www.tensorflow.org/tutorials/generative/pix2pix) | [PyTorch Colab](https://colab.research.google.com/github/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/pix2pix.ipynb)**
-
-<img src="https://phillipi.github.io/pix2pix/images/teaser_v3.png" width="800px"/>
-
-
-**[EdgesCats Demo](https://affinelayer.com/pixsrv/) | [pix2pix-tensorflow](https://github.com/affinelayer/pix2pix-tensorflow) | by [Christopher Hesse](https://twitter.com/christophrhesse)**
-
-<img src='imgs/edges2cats.jpg' width="400px"/>
-
-If you use this code for your research, please cite:
+This code is a reworking of the excellent [CycleGAN-pytorch](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix) repository created by [Jun-Yan Zhu](https://github.com/junyanz) and [Taesung Park](https://github.com/taesungp), and supported by [Tongzhou Wang](https://github.com/SsnL).
+Therefore, if you use this code for your research, please also cite:
 
 Unpaired Image-to-Image Translation using Cycle-Consistent Adversarial Networks.<br>
 [Jun-Yan Zhu](https://www.cs.cmu.edu/~junyanz/)\*,  [Taesung Park](https://taesung.me/)\*, [Phillip Isola](https://people.eecs.berkeley.edu/~isola/), [Alexei A. Efros](https://people.eecs.berkeley.edu/~efros). In ICCV 2017. (* equal contributions) [[Bibtex]](https://junyanz.github.io/CycleGAN/CycleGAN.txt)
 
-
 Image-to-Image Translation with Conditional Adversarial Networks.<br>
 [Phillip Isola](https://people.eecs.berkeley.edu/~isola), [Jun-Yan Zhu](https://www.cs.cmu.edu/~junyanz/), [Tinghui Zhou](https://people.eecs.berkeley.edu/~tinghuiz), [Alexei A. Efros](https://people.eecs.berkeley.edu/~efros). In CVPR 2017. [[Bibtex]](https://www.cs.cmu.edu/~junyanz/projects/pix2pix/pix2pix.bib)
 
-## Talks and Course
-pix2pix slides: [keynote](http://efrosgans.eecs.berkeley.edu/CVPR18_slides/pix2pix.key) | [pdf](http://efrosgans.eecs.berkeley.edu/CVPR18_slides/pix2pix.pdf),
-CycleGAN slides: [pptx](http://efrosgans.eecs.berkeley.edu/CVPR18_slides/CycleGAN.pptx) | [pdf](http://efrosgans.eecs.berkeley.edu/CVPR18_slides/CycleGAN.pdf)
+## Overview of changes and additional features
 
-CycleGAN course assignment [code](http://www.cs.toronto.edu/~rgrosse/courses/csc321_2018/assignments/a4-code.zip) and [handout](http://www.cs.toronto.edu/~rgrosse/courses/csc321_2018/assignments/a4-handout.pdf) designed by Prof. [Roger Grosse](http://www.cs.toronto.edu/~rgrosse/) for [CSC321](http://www.cs.toronto.edu/~rgrosse/courses/csc321_2018/) "Intro to Neural Networks and Machine Learning" at University of Toronto. Please contact the instructor if you would like to adopt it in your course.
+This repository is focussed on facilitating 3D image-to-image translation, by exploiting as much as possible the existing code-base.
+Particularly, this work is aimed to make style transfer between 3D image volume domains more accessible.
+Thus, the original code was significantly cut back, and new options were added which allow 3D data to be supported in cycleGAN.
+Below are summarised the key changes and additions.
+
+### Data
+This repo is specifically designed for volumetric data, such as volume EM data. Instead of small image patches or individual images,
+datasets of 3D volumes can be directly loaded during training and for inference.
+
+### Stitching
+During inference, the datasets are directly stitched. 
+In addition to standard stitching techniques often used for similar encoder-decoder pipelines on large datasets,
+we implement the tile-and-stitch method described in our group (https://github.com/Kainmueller-Lab/shift_equivariance_unet). This allows data inferred by 
+a model using a unet backbone to stitch large datasets without any stitching artefacts.
+
+### Evaluation
+Once the models are trained, they can be tested using a pipeline which calculates the Frechet Inception Distance (FID) between the
+predicted datasets and the source domains for every model checkpoint saved during training. This facilitates the choice of the best
+checkpoint for any downstream tasks, beyond qualitative assessments by a human.
+
+### Training and Inference procedures
+Instead of focussing entirely on 3D training and inference which can be computationally heavy, there are several options for training and inference.
+For training, users can choose between training a model with 3D patches and with 3D convolutions, exploiting the potential gain in context in each patch,
+or with 2D patches extracted from each slice of the image stacks and 2D convolutions, and exploiting the larger batch size for training.
+
+For inference, users can either predict models given the above 2d or 3d options or use orthopatch (2.5d) prediction which may provide the benefit of
+assembling the predicted dataset from an ensemble of predictions.
+
+### Small additions
+
+- added swinunetr as an additional backbone for the generator models
+- added additional (optional) structural similarity (SSIM) loss term to the cycle-consistency loss, for added stability during training, as suggested here [].
+- added additional learning rate schedulers
+- added a sampler which filters out patches with background, using a simple measure of pixel standard deviation per patch, to maximize the number of patches with informative content.
+- reduced visualisation module to wandb visualisation
+
+### Disclaimers
+The repo is still a work in progress. Specifically, it was designed for EM data which usually has only a single channel. The repo has not been thoroughly
+tested for images with multiple channels, such as RGB. Hopefully, by streamlining the code, adapting the repo for other data will make additional features easy to add for other users.
+The repo has been tested on .tif images, and currently other data types are not supported yet. Convert your image volumes to .tif files to use this repo. 
+Finally, the images used to test this repo were made isotropic in all dimensions and the architectures of the model backbones are adapted for isotropic data. 
+To use on non-isotropic data, for now you can either use the 2d training and inference or you will need to change the architecture of the networks used in the generator models and the patch sizes used to tile the datasets.
+
+Please post an issue of something is not working, so we can improve the repo as we go.
 
 ## Colab Notebook
 TensorFlow Core CycleGAN Tutorial: [Google Colab](https://colab.research.google.com/github/tensorflow/docs/blob/master/site/en/tutorials/generative/cyclegan.ipynb) | [Code](https://github.com/tensorflow/docs/blob/master/site/en/tutorials/generative/cyclegan.ipynb)
@@ -56,35 +67,6 @@ PyTorch Colab notebook: [CycleGAN](https://colab.research.google.com/github/juny
 
 ZeroCostDL4Mic Colab notebook: [CycleGAN](https://colab.research.google.com/github/HenriquesLab/ZeroCostDL4Mic/blob/master/Colab_notebooks_Beta/CycleGAN_ZeroCostDL4Mic.ipynb) and [pix2pix](https://colab.research.google.com/github/HenriquesLab/ZeroCostDL4Mic/blob/master/Colab_notebooks_Beta/pix2pix_ZeroCostDL4Mic.ipynb)
 
-## Other implementations
-### CycleGAN
-<p><a href="https://github.com/leehomyc/cyclegan-1"> [Tensorflow]</a> (by Harry Yang),
-<a href="https://github.com/architrathore/CycleGAN/">[Tensorflow]</a> (by Archit Rathore),
-<a href="https://github.com/vanhuyz/CycleGAN-TensorFlow">[Tensorflow]</a> (by Van Huy),
-<a href="https://github.com/XHUJOY/CycleGAN-tensorflow">[Tensorflow]</a> (by Xiaowei Hu),
-<a href="https://github.com/LynnHo/CycleGAN-Tensorflow-2"> [Tensorflow2]</a> (by Zhenliang He),
-<a href="https://github.com/luoxier/CycleGAN_Tensorlayer"> [TensorLayer1.0]</a> (by luoxier),
-<a href="https://github.com/tensorlayer/cyclegan"> [TensorLayer2.0]</a> (by zsdonghao),
-<a href="https://github.com/Aixile/chainer-cyclegan">[Chainer]</a> (by Yanghua Jin),
-<a href="https://github.com/yunjey/mnist-svhn-transfer">[Minimal PyTorch]</a> (by yunjey),
-<a href="https://github.com/Ldpe2G/DeepLearningForFun/tree/master/Mxnet-Scala/CycleGAN">[Mxnet]</a> (by Ldpe2G),
-<a href="https://github.com/tjwei/GANotebooks">[lasagne/Keras]</a> (by tjwei),
-<a href="https://github.com/simontomaskarlsson/CycleGAN-Keras">[Keras]</a> (by Simon Karlsson),
-<a href="https://github.com/Ldpe2G/DeepLearningForFun/tree/master/Oneflow-Python/CycleGAN">[OneFlow]</a> (by Ldpe2G)
-</p>
-</ul>
-
-### pix2pix
-<p><a href="https://github.com/affinelayer/pix2pix-tensorflow"> [Tensorflow]</a> (by Christopher Hesse),
-<a href="https://github.com/Eyyub/tensorflow-pix2pix">[Tensorflow]</a> (by Eyyüb Sariu),
-<a href="https://github.com/datitran/face2face-demo"> [Tensorflow (face2face)]</a> (by Dat Tran),
-<a href="https://github.com/awjuliani/Pix2Pix-Film"> [Tensorflow (film)]</a> (by Arthur Juliani),
-<a href="https://github.com/kaonashi-tyc/zi2zi">[Tensorflow (zi2zi)]</a> (by Yuchen Tian),
-<a href="https://github.com/pfnet-research/chainer-pix2pix">[Chainer]</a> (by mattya),
-<a href="https://github.com/tjwei/GANotebooks">[tf/torch/keras/lasagne]</a> (by tjwei),
-<a href="https://github.com/taey16/pix2pixBEGAN.pytorch">[Pytorch]</a> (by taey16)
-</p>
-</ul>
 
 ## Prerequisites
 - Linux or macOS
@@ -107,92 +89,24 @@ cd pytorch-CycleGAN-and-pix2pix
   - For Repl users, please click [![Run on Repl.it](https://repl.it/badge/github/junyanz/pytorch-CycleGAN-and-pix2pix)](https://repl.it/github/junyanz/pytorch-CycleGAN-and-pix2pix).
 
 ### CycleGAN train/test
-- Download a CycleGAN dataset (e.g. maps):
-```bash
-bash ./datasets/download_cyclegan_dataset.sh maps
-```
-- To view training results and loss plots, run `python -m visdom.server` and click the URL http://localhost:8097.
+
 - To log training progress and test images to W&B dashboard, set the `--use_wandb` flag with train and test script
 - Train a model:
 ```bash
 #!./scripts/train_cyclegan.sh
-python train.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
+python train.py --dataroot path/to/datasets/ --checkpoints_dir path/to/checkpoints_dir --name my_cyclegan_model --train_mode 2d --netG unet_32 --patch_size 190 --stride_A 190 --stride_B 190
 ```
-To see more intermediate results, check out `./checkpoints/maps_cyclegan/web/index.html`.
+
 - Test the model:
+You can use any of `test_2D.py`, `test_2D_resnet.py`, `test_3D.py`, `test_3D_resnet.py`, `test_2_5D.py`, `test_2_5D_resnet.py`.
+- For instance, to translate from domain A to domain B with a 2D CycleGAN with a Unet Generator:
 ```bash
-#!./scripts/test_cyclegan.sh
-python test.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
-```
-- The test results will be saved to a html file here: `./results/maps_cyclegan/latest_test/index.html`.
-
-### pix2pix train/test
-- Download a pix2pix dataset (e.g.[facades](http://cmp.felk.cvut.cz/~tylecr1/facade/)):
-```bash
-bash ./datasets/download_pix2pix_dataset.sh facades
-```
-- To view training results and loss plots, run `python -m visdom.server` and click the URL http://localhost:8097.
-- To log training progress and test images to W&B dashboard, set the `--use_wandb` flag with train and test script
-- Train a model:
-```bash
-#!./scripts/train_pix2pix.sh
-python train.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
-```
-To see more intermediate results, check out  `./checkpoints/facades_pix2pix/web/index.html`.
-
-- Test the model (`bash ./scripts/test_pix2pix.sh`):
-```bash
-#!./scripts/test_pix2pix.sh
-python test.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
-```
-- The test results will be saved to a html file here: `./results/facades_pix2pix/test_latest/index.html`. You can find more scripts at `scripts` directory.
-- To train and test pix2pix-based colorization models, please add `--model colorization` and `--dataset_mode colorization`. See our training [tips](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md#notes-on-colorization) for more details.
-
-### Apply a pre-trained model (CycleGAN)
-- You can download a pretrained model (e.g. horse2zebra) with the following script:
-```bash
-bash ./scripts/download_cyclegan_model.sh horse2zebra
-```
-- The pretrained model is saved at `./checkpoints/{name}_pretrained/latest_net_G.pth`. Check [here](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/scripts/download_cyclegan_model.sh#L3) for all the available CycleGAN models.
-- To test the model, you also need to download the  horse2zebra dataset:
-```bash
-bash ./datasets/download_cyclegan_dataset.sh horse2zebra
+python test_2D.py --dataroot path/to/test_dataset/ --name path/to/my_2d_cyclegan_model --patch_size 190 --epoch latest --test_mode 2d --model_suffix _A
 ```
 
-- Then generate the results using
-```bash
-python test.py --dataroot datasets/horse2zebra/testA --name horse2zebra_pretrained --model test --no_dropout
-```
-- The option `--model test` is used for generating results of CycleGAN only for one side. This option will automatically set `--dataset_mode single`, which only loads the images from one set. On the contrary, using `--model cycle_gan` requires loading and generating results in both directions, which is sometimes unnecessary. The results will be saved at `./results/`. Use `--results_dir {directory_path_to_save_result}` to specify the results directory.
-
-- For pix2pix and your own models, you need to explicitly specify `--netG`, `--norm`, `--no_dropout` to match the generator architecture of the trained model. See this [FAQ](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md#runtimeerror-errors-in-loading-state_dict-812-671461-296) for more details.
-
-### Apply a pre-trained model (pix2pix)
-Download a pre-trained model with `./scripts/download_pix2pix_model.sh`.
-
-- Check [here](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/scripts/download_pix2pix_model.sh#L3) for all the available pix2pix models. For example, if you would like to download label2photo model on the Facades dataset,
-```bash
-bash ./scripts/download_pix2pix_model.sh facades_label2photo
-```
-- Download the pix2pix facades datasets:
-```bash
-bash ./datasets/download_pix2pix_dataset.sh facades
-```
-- Then generate the results using
-```bash
-python test.py --dataroot ./datasets/facades/ --direction BtoA --model pix2pix --name facades_label2photo_pretrained
-```
-- Note that we specified `--direction BtoA` as Facades dataset's A to B direction is photos to labels.
-
-- If you would like to apply a pre-trained model to a collection of input images (rather than image pairs), please use `--model test` option. See `./scripts/test_single.sh` for how to apply a model to Facade label maps (stored in the directory `facades/testB`).
-
-- See a list of currently available models at `./scripts/download_pix2pix_model.sh`
 
 ## [Docker](docs/docker.md)
 We provide the pre-built Docker image and Dockerfile that can run this code repo. See [docker](docs/docker.md).
-
-## [Datasets](docs/datasets.md)
-Download pix2pix/CycleGAN datasets and create your own datasets.
 
 ## [Training/Test Tips](docs/tips.md)
 Best practice for training and testing your models.
@@ -228,19 +142,3 @@ If you use this code for your research, please cite our papers.
   year={2017}
 }
 ```
-
-## Other Languages
-[Spanish](docs/README_es.md)
-
-## Related Projects
-**[contrastive-unpaired-translation](https://github.com/taesungp/contrastive-unpaired-translation) (CUT)**<br>
-**[CycleGAN-Torch](https://github.com/junyanz/CycleGAN) |
-[pix2pix-Torch](https://github.com/phillipi/pix2pix) | [pix2pixHD](https://github.com/NVIDIA/pix2pixHD)|
-[BicycleGAN](https://github.com/junyanz/BicycleGAN) | [vid2vid](https://tcwang0509.github.io/vid2vid/) | [SPADE/GauGAN](https://github.com/NVlabs/SPADE)**<br>
-**[iGAN](https://github.com/junyanz/iGAN) | [GAN Dissection](https://github.com/CSAILVision/GANDissect) | [GAN Paint](http://ganpaint.io/)**
-
-## Cat Paper Collection
-If you love cats, and love reading cool graphics, vision, and learning papers, please check out the Cat Paper [Collection](https://github.com/junyanz/CatPapers).
-
-## Acknowledgments
-Our code is inspired by [pytorch-DCGAN](https://github.com/pytorch/examples/tree/master/dcgan).

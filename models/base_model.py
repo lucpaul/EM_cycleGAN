@@ -2,8 +2,6 @@ import os
 import torch
 from collections import OrderedDict
 from abc import ABC, abstractmethod
-#from . import networks_2d
-
 
 class BaseModel(ABC):
     """This class is an abstract base class (ABC) for models.
@@ -205,16 +203,24 @@ class BaseModel(ABC):
                     del state_dict._metadata
 
                 if self.opt.netG == 'swinunetr':
-                    # There are some issues with this section. Most importantly, to load the weights into the model,
+                    # There are still several issues with this section. Most importantly, to load the weights into the model,
                     # the source file for the swinunetr model needs to be changed such that the last four layers in each block
                     # are not included. see /home/user/miniconda3/envs/environment_name/lib/python3.8/site-packages/monai/networks/nets/swinunetr.py
                     # and comment out the lines 672 to 675. Then it should work. We will look at a proper solution in the future.
 
+                    # Also, engineering the state dict when loading is not ideal, could be related to nn.dataparallel. But difference between 2d and 3d is confusing.
                     new_state_dict = {}
                     for old_key in state_dict.keys():
                         key = old_key.replace('swinViT', 'module')
+                        #print(old_key, key)
+                        if key.startswith("model"):
+                            key = key[6:]
                         new_state_dict[key] = state_dict[old_key]
                     dict_with_added_key = {'state_dict': new_state_dict}
+
+                    if self.opt.test_mode == "3d":
+                        net = net.model
+
                     net.load_from(weights=dict_with_added_key)
 
                 # patch InstanceNorm checkpoints prior to 0.4

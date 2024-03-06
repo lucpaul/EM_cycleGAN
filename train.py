@@ -1,22 +1,28 @@
 """General-purpose training script for image-to-image translation.
 
-This script works for various models (with option '--model': e.g., pix2pix, cyclegan, colorization) and
-different datasets (with option '--dataset_mode': e.g., aligned, unaligned, single, colorization).
-You need to specify the dataset ('--dataroot'), experiment name ('--name'), and model ('--model').
+This script is for training on a dataroot folder with subfolders trainA and trainB. This will train generators and discriminators
+A and B and save checkpoints for each epoch as checkpoints in a folder named '--checkpoints_dir'. Note that unlike the original
+cycleGAN, more parameters are hard-coded at the end of the file. Primarily, patches are no longer preprocessed by resizing and cropping, and thus,
+the preprocessing flag is hard-coded to 'none'.
 
-It first creates model, dataset, and visualizer given the option.
-It then does standard network training. During the training, it also visualize/save the images, print/save the loss plot, and save models.
-The script supports continue/resume training. Use '--continue_train' to resume your previous training.
+The main flags you need to specify:
+ - '--dataroot'
+ - '--checkpoints_dir'
+ - '--name' (the name of your model)
+ - '--train_mode' (3d or 2d)
+ - '--netG'  (the model backbone: e.g. resnet_9block, unet_32, swinunetr)
+ - '--patch_size' (The side_length of the patches the dataset is tiled into.
+                   If the provided value is not compatible with the backbone, the patch size will be automatically adjusted.)
+ - 'stride_A' (the distance between two neighbouring patches for dataset A)
+ - 'stride_B' (the distance between two neighbouring patches for dataset B)
 
 Example:
     Train a CycleGAN model:
-        python train.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
-    Train a pix2pix model:
-        python train.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
+        python train.py --dataroot path/to/datasets --checkpoints_dir path/to/checkpoints --name my_cyclegan_model
+                        --train_mode 3d --netG resnet_9blocks --patch_size 160 --stride_A 160 --stride_B 160
 
-See options/base_options.py and options/train_options.py for more training options.
-See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
-See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
+Further parameters such as options for loss, batch_size, epoch number etc. can be seen in the
+options/base_options.py and options/train_options.py files.
 """
 import time
 from options.train_options import TrainOptions
@@ -25,6 +31,7 @@ from models import create_model
 import gc
 import torch
 from util.visualizer import Visualizer
+from util.util import adjust_patch_size
 
 
 def train(opt):
@@ -34,8 +41,8 @@ def train(opt):
         opt.dataset_mode = 'patched_unaligned_3d'
     elif opt.train_mode == "2d":
         opt.dataset_mode = 'patched_unaligned_2d'
-    #old_patch_size = opt.patch_size
-    _adjust_patch_size(opt)
+
+    adjust_patch_size(opt)
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
@@ -86,49 +93,49 @@ def train(opt):
 
         print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
 
-def _adjust_patch_size(opt):
-
-    old_patch_size = opt.patch_size
-    if opt.netG.startswith('unet'):
-        depth_factor = int(opt.netG[5:])
-        # print("depth factor: ", depth_factor)
-        patch_size = opt.patch_size
-        # print(patch_size, (patch_size + 2) % depth_factor)
-        if (patch_size + 2) % depth_factor == 0:
-            pass
-        else:
-            # In the valid unet, the patch sizes that can be evenly downsampled in the layers (i.e. without residual) are
-            # limited to values which are divisible by 32, after adding the pixels lost in the valid conv layer, i.e.:
-            # 158 (instead of 160), 190 (instead of 192), 222 (instead of 224), etc. Below, the nearest available patch size
-            # selected to patch the image accordingly. (Choosing a smaller value than the given patch size, should ensure
-            # that the patches are not bigger than any dimensions of the whole input image)
-            new_patch_sizes = opt.patch_size - torch.arange(1, depth_factor)
-            new_patch_size = int(new_patch_sizes[(new_patch_sizes + 2) % depth_factor == 0])
-            opt.patch_size = new_patch_size
-            print(
-                f"The provided patch size {old_patch_size} is not compatible with the chosen unet backbone with valid convolutions. Patch size was changed to {new_patch_size}")
-
-    elif opt.netG.startswith("resnet"):
-        patch_size = opt.patch_size
-        if patch_size % 4 == 0:
-            pass
-        else:
-            new_patch_sizes = opt.patch_size - torch.arange(1, 4)
-            new_patch_size = int(new_patch_sizes[(new_patch_sizes % 4) == 0])
-            opt.patch_size = new_patch_size
-            print(
-                f"The provided patch size {old_patch_size} is not compatible with the resnet backbone. Patch size was changed to {new_patch_size}")
-
-    elif opt.netG.startswith("swinunetr"):
-        patch_size = opt.patch_size
-        if patch_size % 32 == 0:
-            pass
-        else:
-            new_patch_sizes = opt.patch_size - torch.arange(1, 32)
-            new_patch_size = int(new_patch_sizes[(new_patch_sizes % 32) == 0])
-            opt.patch_size = new_patch_size
-            print(
-                f"The provided patch size {old_patch_size} is not compatible with the swinunetr backbone. Patch size was changed to {new_patch_size}")
+# def _adjust_patch_size(opt):
+#
+#     old_patch_size = opt.patch_size
+#     if opt.netG.startswith('unet'):
+#         depth_factor = int(opt.netG[5:])
+#         # print("depth factor: ", depth_factor)
+#         patch_size = opt.patch_size
+#         # print(patch_size, (patch_size + 2) % depth_factor)
+#         if (patch_size + 2) % depth_factor == 0:
+#             pass
+#         else:
+#             # In the valid unet, the patch sizes that can be evenly downsampled in the layers (i.e. without residual) are
+#             # limited to values which are divisible by 32 (2**5 for 5 downsampling steps), after adding the pixels lost in the valid conv layer, i.e.:
+#             # 158 (instead of 160), 190 (instead of 192), 222 (instead of 224), etc. Below, the nearest available patch size
+#             # selected to patch the image accordingly. (Choosing a smaller value than the given patch size, should ensure
+#             # that the patches are not bigger than any dimensions of the whole input image)
+#             new_patch_sizes = opt.patch_size - torch.arange(1, depth_factor)
+#             new_patch_size = int(new_patch_sizes[(new_patch_sizes + 2) % depth_factor == 0])
+#             opt.patch_size = new_patch_size
+#             print(
+#                 f"The provided patch size {old_patch_size} is not compatible with the chosen unet backbone with valid convolutions. Patch size was changed to {new_patch_size}")
+#
+#     elif opt.netG.startswith("resnet"):
+#         patch_size = opt.patch_size
+#         if patch_size % 4 == 0:
+#             pass
+#         else:
+#             new_patch_sizes = opt.patch_size - torch.arange(1, 4)
+#             new_patch_size = int(new_patch_sizes[(new_patch_sizes % 4) == 0])
+#             opt.patch_size = new_patch_size
+#             print(
+#                 f"The provided patch size {old_patch_size} is not compatible with the resnet backbone. Patch size was changed to {new_patch_size}")
+#
+#     elif opt.netG.startswith("swinunetr"):
+#         patch_size = opt.patch_size
+#         if patch_size % 32 == 0:
+#             pass
+#         else:
+#             new_patch_sizes = opt.patch_size - torch.arange(1, 32)
+#             new_patch_size = int(new_patch_sizes[(new_patch_sizes % 32) == 0])
+#             opt.patch_size = new_patch_size
+#             print(
+#                 f"The provided patch size {old_patch_size} is not compatible with the swinunetr backbone. Patch size was changed to {new_patch_size}")
 
 if __name__ == '__main__':
     opt = TrainOptions().parse()   # get training options
@@ -136,5 +143,6 @@ if __name__ == '__main__':
     opt.preprocess = "none"
     opt.input_nc = 1
     opt.output_nc = 1
+    opt.use_wandb = True
     train(opt)
-    TrainOptions().print_options(opt)
+    TrainOptions().save_options(opt) # Save the training options in train_opt.txt

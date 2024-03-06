@@ -107,6 +107,14 @@ class BaseOptions():
         message += '----------------- End -------------------'
         print(message)
 
+    def save_options(self, opt):
+
+        message = ''
+        message += '----------------- Options ---------------\n'
+        for k, v in sorted(vars(opt).items()):
+            message += '{:>25}: {:<30}\n'.format(str(k), str(v))
+        message += '----------------- End -------------------'
+
         # save to the disk
         expr_dir = os.path.join(opt.checkpoints_dir, opt.name)
         util.mkdirs(expr_dir)
@@ -114,6 +122,7 @@ class BaseOptions():
         with open(file_name, 'wt') as opt_file:
             opt_file.write(message)
             opt_file.write('\n')
+
 
     def parse(self):
         """Parse our options, create checkpoints directory suffix, and set up gpu device."""

@@ -294,10 +294,9 @@ def save_fid_stats(paths, batch_size, device, dims, num_workers=1):
 
     #print(f"Saving statistics for {paths[0]}")
 
-    #print(paths[0].shape)
     m1, s1 = compute_statistics_of_path(paths[0], model, batch_size,
                                         dims, device, num_workers)
-    #print(paths[1])
+
     np.savez_compressed(paths[1], mu=m1, sigma=s1)
 
 

@@ -1,6 +1,5 @@
 import random
 import torch
-import torchvision.transforms as transform
 
 
 def build_slices_3d(dataset, patch_shape, stride_shape):
@@ -13,7 +12,7 @@ def build_slices_3d(dataset, patch_shape, stride_shape):
         [(slice, slice, slice), ...] if len(shape) == 3
     """
     slices = []
-    #dataset = tensor2im(dataset)
+
     if dataset.ndim == 4:
         in_channels, i_z, i_y, i_x = dataset.shape
     else:

@@ -13,8 +13,15 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
 
 class patched2ddataset(BaseDataset2D):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
+    When the test_script for the unet model is run, it patches the dataset for each z-slice of a stack with a hard-coded
+    stride that is exactly equal to the output shape of the unet which allows the results to be tiled-and-stitched without artefacts.
 
-    It can be used for generating CycleGAN results only for one side with the model option '-model test'.
+    If run with a different backbone, the stride is hardcoded to be smaller than or equal to the patch size for each z-slice
+    and results are stitched in a standard approach by averaging overlapping patches.
+
+    This dataset is used during inference for the test_2D.py and test_2D_resnet.py scripts.
+
+    It can be called during inference using the flag --test_mode 2d
     """
 
     def __init__(self, opt):
@@ -35,13 +42,10 @@ class patched2ddataset(BaseDataset2D):
             stride = opt.patch_size - difference - 2
             self.stride = np.asarray([stride, stride])
         else:
-            self.stride = self.patch_size
+            self.stride = self.patch_size - 16
 
-        #self.stride = self.patch_size
-        #print("dataset: ", self.patch_size)
-
-        assert opt.patch_size >= opt.stride_A, f"Images can only be stitched if patch size is at least equal to stride, but not smaller. " \
-                                               f"Given patch size is {self.patch_size} and stride {self.stride}. That won't work."
+        assert self.patch_size.all() >= self.stride.all(), f"Images can only be stitched if patch size is at least equal to stride, but not smaller. " \
+                                                        f"Given patch size is {self.patch_size} and stride {self.stride}. That won't work."
         self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
 
 

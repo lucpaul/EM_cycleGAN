@@ -1,33 +1,20 @@
-"""General-purpose test script for image-to-image translation.
+"""An inference script for image-to-image translation on 2d patches, with a standard stitching approach.
 
-Once you have trained your model with train.py, you can use this script to test the model.
-It will load a saved model from '--checkpoints_dir' and save the results to '--results_dir'.
+Once you have trained your 2d model with train.py, using any backbone other than unet, you can use this script to test the model.
+It will load a saved model from '--name' and save the results to '--results_dir'.
 
-It first creates model and dataset given the option. It will hard-code some parameters.
-It then runs inference for '--num_test' images and save results to an HTML file.
+It first creates a model and appropriate dataset (patched_2d_dataset) automatically. It will hard-code some parameters.
+It then runs inference for the images in the dataroot, assembling full volumes by performing inference on each slice
+of the image stack and then assembling the full stack from the slices.
 
-Example (You need to train models first or download pre-trained models from our website):
-    Test a CycleGAN model (both sides):
-        python test.py --dataroot ./datasets/maps --name maps_cyclegan --model cycle_gan
+Example (You need to train models first):
+    Test a CycleGAN model:
+        python test_2D_resnet.py --dataroot path/to/domain_A --name path/to/my_cyclegan_model --epoch 1 --model_suffix _A
+                                 --patch_size 188 --test_mode 2d --results_dir path/to/results
 
-    Test a CycleGAN model (one side only):
-        python test.py --dataroot datasets/horse2zebra/testA --name horse2zebra_pretrained --model test --no_dropout
+See options/base_options.py and options/test_options.py for more test options."""
 
-    The option '--model test' is used for generating CycleGAN results only for one side.
-    This option will automatically set '--dataset_mode single', which only loads the images from one set.
-    On the contrary, using '--model cycle_gan' requires loading and generating results in both directions,
-    which is sometimes unnecessary. The results will be saved at ./results/.
-    Use '--results_dir <directory_path_to_save_result>' to specify the results directory.
-
-    Test a pix2pix model:
-        python test.py --dataroot ./datasets/facades --name facades_pix2pix --model pix2pix --direction BtoA
-
-See options/base_options.py and options/test_options.py for more test options.
-See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/tips.md
-See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
-"""
 import os
-
 import torchvision.transforms as transforms
 from options.test_options import TestOptions
 from data import create_dataset
@@ -39,7 +26,7 @@ import tifffile
 import torch
 from torch import nn
 from tqdm import tqdm
-from train import _adjust_patch_size
+from util.util import adjust_patch_size
 
 try:
     import wandb
@@ -48,9 +35,6 @@ except ImportError:
 
 
 def inference(opt):
-
-    #patch_size = opt.patch_size
-    #stride = opt.patch_size #opt.stride_A
 
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
@@ -64,16 +48,13 @@ def inference(opt):
     if opt.netG.startswith('unet') or opt.netG.startswith('resnet'):
         if opt.netG.startswith('resnet'):
             opt.netG = opt.netG[:14]
-            #opt.netG = 'resnet_9blocks'
         opt.ngf = int(dicti['ngf'])
-    #assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
-    #opt.test_mode == '2d'
+    assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
 
-    #_adjust_patch_size(opt)
+    adjust_patch_size(opt)
     patch_size = opt.patch_size
-    stride = opt.patch_size - 8 #opt.stride_A
+    stride = opt.patch_size - 16
 
-    print("patch_:", patch_size)
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
@@ -114,7 +95,6 @@ def inference(opt):
             img = model.fake
             if i % int(data['patches_per_slice']) == 0:
                 if i != 0:
-                    #prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
                     prediction_volume.append(prediction_map)
                     normalization_volume.append(normalization_map)
 
@@ -132,7 +112,6 @@ def inference(opt):
             pred_index += 1
 
             if i == len(input_list)-1:
-                #prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
                 prediction_volume.append(prediction_map)
                 normalization_volume.append(normalization_map)
 
@@ -140,8 +119,7 @@ def inference(opt):
         prediction_volume = np.asarray(prediction_volume)
         prediction_volume = prediction_volume / normalization_volume
 
-        prediction_volume = (255 * (prediction_volume - prediction_volume.min()) / ((prediction_volume.max() - prediction_volume.min()))).astype(np.uint8)
-
+        prediction_volume = (prediction_volume * 255).astype(np.uint8)
         tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)
 
 # pad and unpad functions from pytorch 3d unet by wolny
@@ -168,6 +146,7 @@ if __name__ == '__main__':
     opt.batch_size = 1    # test code only supports batch_size = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True    # no flip; comment this line if results on flipped images are needed.
-    # opt.display_id = -1   # no visdom display; the test code saves the results to a HTML file.
     opt.dataset_mode = 'patched_2d'
+    opt.test_mode == '2d'
     inference(opt)
+    TestOptions().save_options(opt)

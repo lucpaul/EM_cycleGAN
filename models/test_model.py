@@ -24,9 +24,10 @@ class TestModel(BaseModel):
         assert not is_train, 'TestModel cannot be used during training time'
         parser.add_argument('--model_suffix', type=str, default='_A', help='In checkpoints_dir, [epoch]_net_G[model_suffix].pth will be loaded as the generator.')
         # Below options are only when evaluating model using fid etc.
-        parser.add_argument('--eval_direction', type=str, default='one-way', help='whether to evaluate only domain A to domain B or both-ways.')
-        parser.add_argument('--domain_B', type=str, default='', help='if eval_direction=both-ways, then the model in the reverse direction (BtoA) will be evaluated on this dataset')
-        parser.add_argument('--target_domain_A_fid_file', type=str, default=None, help='Only required when eval_direction=both-ways. Gives path to a FID .npz file from the source domain. When model was trained with trainA and trainB, this should be from A.')
+        parser.add_argument('--eval_direction', type=str, default='both-ways', help='whether to evaluate only domain A to domain B or both-ways.')
+        parser.add_argument('--target_domain', type=str, default='', help='if eval_direction=both-ways, then the model in the reverse direction (BtoA) will be evaluated on this dataset')
+        parser.add_argument('--source_domain',  type=str, default='', help='initially this will be equivalent to dataroot, but can be dynamically changed if eval_direction=both-ways')
+        parser.add_argument('--target_domain_A_fid_file', type=str, default='', help='Only required when eval_direction=both-ways. Gives path to a FID .npz file from the source domain. When model was trained with trainA and trainB, this should be from A.')
         parser.add_argument('--target_domain_B_fid_file', type=str, default='', help='required. Gives path to a FID .npz file from the source domain. When models was trained with trainA and trainB, this should be from B.')
         return parser
 
@@ -49,7 +50,6 @@ class TestModel(BaseModel):
         elif opt.test_mode == '3d':
             from . import networks_3d as networks
 
-        print(opt.test_mode)
         self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG,
                                       opt.norm, not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 

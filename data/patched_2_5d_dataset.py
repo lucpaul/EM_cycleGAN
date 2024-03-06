@@ -17,8 +17,11 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
 
 class patched25ddataset(BaseDataset2D):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
+    It patches the dataset sequentially in 3 dimensions with a hard-coded stride that is equal to or smaller than the patch size.
 
-    It can be used for generating CycleGAN results only for one side with the model option '-model test'.
+    This dataset is used during inference for the test_2_5D.py and test_2_5D_resnet.py scripts.
+
+    It can be called during inference using the flag --test_mode 2.5d
     """
 
     def __init__(self, opt):
@@ -39,9 +42,9 @@ class patched25ddataset(BaseDataset2D):
             stride = opt.patch_size - difference - 2
             self.stride = np.asarray([stride, stride, stride])
             self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
-        elif opt.netG.startswith('resnet'):
+        elif opt.netG.startswith('resnet') or opt.netG.startswith('swinunetr'):
             opt.netG = opt.netG[:14]
-            self.stride = self.patch_size
+            self.stride = self.patch_size - 8
             self.init_padding = np.asarray([0, 0, 0])
 
     def __getitem__(self, index):
