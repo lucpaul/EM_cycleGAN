@@ -39,6 +39,7 @@ class Visualizer():
         self.wandb_project_name = opt.wandb_project_name
         self.current_epoch = 0
         self.train_mode = opt.train_mode
+        self.raw_patch_size = opt.patch_size
 
         if self.use_wandb:
             self.wandb_run = wandb.init(dir=opt.checkpoints_dir, project=self.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
