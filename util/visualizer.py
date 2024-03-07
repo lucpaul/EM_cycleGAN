@@ -44,6 +44,8 @@ class Visualizer():
             self.wandb_run = wandb.init(dir=opt.checkpoints_dir, project=self.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
             self.wandb_run._label(repo='CycleGAN-and-pix2pix')
 
+        if not os.path.exists(os.path.join(opt.checkpoints_dir, opt.name)):
+            os.mkdir(os.path.join(opt.checkpoints_dir, opt.name))
         self.log_name = os.path.join(opt.checkpoints_dir, opt.name, 'loss_log.txt')
         with open(self.log_name, "a") as log_file:
             now = time.strftime("%c")
