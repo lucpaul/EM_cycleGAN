@@ -12,6 +12,8 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
     number_of_patches = np.ma.ceil(((volume_shape + init_padding - input_patch_size) / stride) + 1)
     volume_new = ((np.asarray(number_of_patches))*stride) + input_patch_size
     new_padding = volume_new - volume_shape - init_padding
+
+    new_padding = np.where(new_padding > ((input_patch_size - stride) / 2), new_padding, new_padding + (input_patch_size - stride))
     return new_padding.astype(int)
 
 
@@ -111,6 +113,7 @@ class patched25ddataset(BaseDataset2D):
                 A_img_patch = torch.unsqueeze(A_img_patch, 0)
                 patches_3.append(A_img_patch)
 
+        print(A_img_size_raw, A_img_size_pad)
         return {'xy': patches, 'zy': patches_2, 'zx': patches_3,
                 'A_paths': A_path, 'A_full_size_raw': A_img_size_raw,
                 'A_full_size_pad': A_img_size_pad,

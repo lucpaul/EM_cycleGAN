@@ -299,38 +299,113 @@ def save_fid_stats(paths, batch_size, device, dims, num_workers=1):
 
     np.savez_compressed(paths[1], mu=m1, sigma=s1)
 
+import random
+import tifffile
+#
+# def _gen_indices(i, k, s):
+#     assert i >= k, 'Sample size has to be bigger than the patch size'
+#     for j in range(0, i - k + 1, s):
+#         yield j
+#     if j + k < i:
+#         yield i - k
+#
+# def build_slices(dataset, patch_shape, stride_shape):
+#     """Iterates over a given n-dim dataset patch-by-patch with a given stride
+#     and builds an array of slice positions.
+#
+#     Returns:
+#         list of slices, i.e.
+#         [(slice, slice, slice, slice), ...] if len(shape) == 4
+#         [(slice, slice, slice), ...] if len(shape) == 3
+#     """
+#     slices = []
+#     if dataset.ndim == 4:
+#         in_channels, i_y, i_x = dataset.shape
+#     else:
+#         i_y, i_x = dataset.shape
+#
+#     k_y, k_x = patch_shape
+#     s_y, s_x = stride_shape
+#     y_steps = _gen_indices(i_y, k_y, s_y)
+#     for y in y_steps:
+#         x_steps = _gen_indices(i_x, k_x, s_x)
+#         for x in x_steps:
+#             slice_idx = (
+#                 slice(y, y + k_y),
+#                 slice(x, x + k_x)
+#             )
+#             if dataset.ndim == 3:
+#                 slice_idx = (slice(0, in_channels),) + slice_idx
+#             slices.append(slice_idx)
+#     return slices
+#
+# patches = []
+# for img in os.listdir(os.path.join("/home/lucas2/Projects/MitoEM/trainB/")):
+#     dataset = tifffile.imread(os.path.join("/home/lucas2/Projects/MitoEM/trainB/", img))
+#     dataset = np.squeeze(dataset)
+#     dataset = torch.from_numpy(dataset)
+#
+#     new_patches = []
+#     for z in range(0, dataset.shape[0]):
+#         img_slice = dataset[z]
+#         slices = build_slices(img_slice, [128, 128], [128, 128])
+#         for my_slice in slices:
+#             img_patch = img_slice[my_slice]
+#             img_patch = torch.unsqueeze(img_patch, 0)
+#             new_patches.append(img_patch)
+#
+#     patches += new_patches
+#
+# random.seed(42)
+# indices = random.sample(range(len(patches)), k=20000)
+#
+# patches = torch.stack(patches)
+#
+# print(patches.shape)
+# patches = patches[indices, :, :, :]
+#
+# fingerprint_path = "/home/lucas2/Projects/MitoEM/FID/im_R_full_stack.npz"
+#
+# paths = [list(patches), fingerprint_path]
+#
+# # Here the paths argument is a list containing a list and a path
+# save_fid_stats(paths, batch_size=50, device='cuda', dims=2048)
 
-def main():
-    args = parser.parse_args()
 
-    if args.device is None:
-        device = torch.device('cuda' if (torch.cuda.is_available()) else 'cpu')
-    else:
-        device = torch.device(args.device)
+fid_score = calculate_fid_given_paths(["/home/lucas2/Projects/MitoEM/FID/im_H_full_stack.npz", "/home/lucas2/Projects/MitoEM/FID/im_R_full_stack.npz"],  batch_size=50, device='cuda', dims=2048)
 
-    if args.num_workers is None:
-        try:
-            num_cpus = len(os.sched_getaffinity(0))
-        except AttributeError:
-            # os.sched_getaffinity is not available under Windows, use
-            # os.cpu_count instead (which may not return the *available* number
-            # of CPUs).
-            num_cpus = os.cpu_count()
-
-        num_workers = min(num_cpus, 8) if num_cpus is not None else 0
-    else:
-        num_workers = args.num_workers
-
-    if args.save_stats:
-        save_fid_stats(args.path, args.batch_size, device, args.dims, num_workers)
-        return
-
-    fid_value = calculate_fid_given_paths(args.path,
-                                          args.batch_size,
-                                          device,
-                                          args.dims,
-                                          num_workers)
-
-
-if __name__ == '__main__':
-    main()
+print(fid_score)
+# def main():
+#     args = parser.parse_args()
+#
+#     if args.device is None:
+#         device = torch.device('cuda' if (torch.cuda.is_available()) else 'cpu')
+#     else:
+#         device = torch.device(args.device)
+#
+#     if args.num_workers is None:
+#         try:
+#             num_cpus = len(os.sched_getaffinity(0))
+#         except AttributeError:
+#             # os.sched_getaffinity is not available under Windows, use
+#             # os.cpu_count instead (which may not return the *available* number
+#             # of CPUs).
+#             num_cpus = os.cpu_count()
+#
+#         num_workers = min(num_cpus, 8) if num_cpus is not None else 0
+#     else:
+#         num_workers = args.num_workers
+#
+#     if args.save_stats:
+#         save_fid_stats(args.path, args.batch_size, device, args.dims, num_workers)
+#         return
+#
+#     fid_value = calculate_fid_given_paths(args.path,
+#                                           args.batch_size,
+#                                           device,
+#                                           args.dims,
+#                                           num_workers)
+#
+#
+# if __name__ == '__main__':
+#     main()

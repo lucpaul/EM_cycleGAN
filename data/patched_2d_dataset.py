@@ -9,6 +9,8 @@ def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
     number_of_patches = np.ma.ceil(((volume_shape[1:] + init_padding - input_patch_size) / stride) + 1)
     volume_new = ((np.asarray(number_of_patches))*stride) + input_patch_size
     new_padding = volume_new - volume_shape[1:] - init_padding
+
+    new_padding = np.where(new_padding > ((input_patch_size - stride) / 2), new_padding, new_padding + (input_patch_size - stride))
     return new_padding.astype(int)
 
 class patched2ddataset(BaseDataset2D):

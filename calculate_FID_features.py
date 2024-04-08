@@ -6,7 +6,7 @@ from data.SliceBuilder import build_slices
 import random
 
 
-def fid_features(input_dir, save_path, n_samples=2000):
+def fid_features(input_dir, save_path, n_samples=20000):
     patches = []
     for img in os.listdir(input_dir):
         dataset = tifffile.imread(os.path.join(input_dir, img))

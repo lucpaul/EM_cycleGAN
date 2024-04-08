@@ -65,7 +65,17 @@ def inference_2_5D(opt):
         wandb_run._label(repo='CycleGAN-and-pix2pix')
 
     model.eval()
+
     for j, data in enumerate(dataset):
+        #print(data['full_size_pad'], data['full_size_raw'])
+        size_0 = stride * math.ceil(((data['A_full_size_pad'][0] - patch_size) / stride) + 1)
+        size_1 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
+        size_2 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
+        #size_3 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
+        #size_4 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
+        #size_5 = stride * math.ceil(((data['A_full_size_pad'][0] - patch_size) / stride) + 1)
+
+        print(stride, patch_size, size_0, size_1, size_2)
         prediction_volume = []
         ortho_planes = ['xy', 'zy', 'zx']
         for direction in ortho_planes:
@@ -83,6 +93,7 @@ def inference_2_5D(opt):
             for i in tqdm(range(0, len(data[direction])), desc="Inference progress"):
                 size_0 = stride * math.ceil(((full_pad_dim_1 - patch_size) / stride) + 1)
                 size_1 = stride * math.ceil(((full_pad_dim_2 - patch_size) / stride) + 1)
+                #print(size_0, size_1)
                 input = data[direction][i] # instead of A
                 model.set_input(input)
                 model.test()
@@ -100,6 +111,7 @@ def inference_2_5D(opt):
                         dir_volume.append(prediction_map)
 
                     prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
+                    #print(prediction_map.shape)
                     prediction_slices = build_slices(prediction_map, [stride,stride], [stride,stride])
                     pred_index = 0
 

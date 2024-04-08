@@ -49,6 +49,7 @@ class patchedunaligned3ddataset(BaseDataset3D):
 
     def build_patches(self, image_paths, stride, filter):
         all_patches = []
+        stdevs = []
         transform = transforms.Compose([
             transforms.ToTensor()
         ])
@@ -67,23 +68,28 @@ class patchedunaligned3ddataset(BaseDataset3D):
             for slice in slices:
                 img_patch = img[slice]
                 img_patch = torch.unsqueeze(img_patch, 0)
-                img_patch = self.transform_A(img_patch)
+                stdevs.append(torch.std(img_patch, dim=[1, 2, 3]).item())
+                #img_patch = self.transform_A(img_patch)
                 all_patches.append(img_patch)
 
-        all_patches = torch.stack(all_patches)
+        #all_patches = torch.stack(all_patches)
 
         # Here I will test an option to filter out those patches that are mostly background.
         # For now, by choosing the 5% (?) of patches with the lowest standard deviation in pixel values,
         # which presumably contain the least insightful structures.
 
-        print("filtering out the worst patches")
-        stdevs = torch.squeeze(torch.std(all_patches, dim=[2, 3, 4]), dim=1)
-        index = torch.arange(stdevs.shape[0])
-        index[stdevs < torch.quantile(stdevs, filter, dim=None, keepdim=True, interpolation="nearest")] = -1
+        #print("filtering out the worst patches")
+        #stdevs = torch.squeeze(torch.std(all_patches, dim=[2, 3, 4]), dim=1)
+        #index = torch.arange(stdevs.shape[0])
+        #index[stdevs < torch.quantile(stdevs, filter, dim=None, keepdim=True, interpolation="nearest")] = -1
 
-        all_patches = torch.squeeze(all_patches, dim=0)[index != -1]
+        #all_patches = torch.squeeze(all_patches, dim=0)[index != -1]
 
-        return all_patches
+        all_patches_sorted = [x for _, x in sorted(zip(stdevs, all_patches), key=lambda pair:pair[0])]
+
+        first_index = int(filter * len(all_patches_sorted))
+        all_patches_filtered = all_patches_sorted[first_index:]
+        return all_patches_filtered
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
