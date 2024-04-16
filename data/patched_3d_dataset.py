@@ -62,6 +62,10 @@ class patched3ddataset(BaseDataset3D):
         A_img_full = tifffile.imread(image_path) # Read image
         #A_img_full = normalize(A_img_full, 0.1, 99.8) #Not tested the results for this yet
 
+        # We ensure that the volume is read in 3 dimensions. This will only work if the image has a single channel.
+        if len(A_img_full.shape) > 3:
+            A_img_full = np.squeeze(A_img_full)
+
         A_img_size_raw = A_img_full.shape # Get the raw image size
 
         if self.opt.netG.startswith('unet'):

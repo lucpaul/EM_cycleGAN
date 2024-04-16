@@ -27,6 +27,7 @@ import torch
 from torch import nn
 from tqdm import tqdm
 from util.util import adjust_patch_size
+from matplotlib import pyplot as plt
 
 try:
     import wandb
@@ -89,10 +90,15 @@ def inference(opt):
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
             input = _pad(input, patch_halo)
-
+            # plt.imshow(input[0, 0, :, :])
+            # plt.show()
             model.set_input(input)
             model.test()
             img = model.fake
+
+            # plt.imshow(img[0,0,:,:].cpu())
+            # plt.show()
+
             if i % int(data['patches_per_slice']) == 0:
                 if i != 0:
                     prediction_volume.append(prediction_map)

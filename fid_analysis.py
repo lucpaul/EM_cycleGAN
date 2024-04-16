@@ -169,7 +169,7 @@ def fid_analysis(opt):
             patches += new_patches
 
         random.seed(42)
-        indices = random.sample(range(len(patches)), k=2000)
+        indices = random.sample(range(len(patches)), k=20000)
 
         patches = torch.stack(patches)
         patches = patches[indices, :, :, :]
@@ -179,6 +179,12 @@ def fid_analysis(opt):
 
         if opt.source_domain.endswith('/'):
             opt.source_domain = opt.source_domain[:-1]
+
+        if opt.dataroot.endswith('/'):
+            opt.dataroot = opt.dataroot[:-1]
+
+        if opt.target_domain.endswith('/'):
+            opt.target_domain = opt.target_domain[:-1]
 
 
         fingerprint_path = os.path.join(opt.results_dir, "FID_features_for_"+os.path.basename(opt.name) + "_epoch_" + checkpoint[:-12] + "_generated_" + os.path.basename(opt.dataroot) + "_as_" + os.path.basename(opt.target_domain))
@@ -190,19 +196,20 @@ def fid_analysis(opt):
 
         # If no ground-truth files exist yet, they can be calculated here
         if opt.target_domain_B_fid_file == '':
-            fid_features(target_domain, opt.results_dir, n_samples=20)
+            fid_features(target_domain, opt.results_dir, n_samples=20000)
             opt.target_domain_B_fid_file = os.path.join(opt.results_dir, "FID_features_for_"+os.path.basename(target_domain)+".npz")
 
         if opt.target_domain_A_fid_file == '':
-            fid_features(source_domain, opt.results_dir, n_samples=20)
+            fid_features(source_domain, opt.results_dir, n_samples=20000)
             opt.target_domain_A_fid_file = os.path.join(opt.results_dir, "FID_features_for_" + os.path.basename(source_domain) + ".npz")
 
         # Here the path arguments are both paths to .npz files
         if opt.model_suffix.endswith("A"):
             fid_score = calculate_fid_given_paths([fingerprint_path+".npz", opt.target_domain_B_fid_file],  batch_size=50, device='cuda', dims=2048)
+            all_fid_scores["FID_" + os.path.basename(opt.name) + "_" + str(checkpoint[:-12]) + ": generated " + os.path.basename(opt.dataroot) + " as " + os.path.basename(opt.target_domain) + " vs. " + os.path.basename(opt.target_domain_B_fid_file)] = fid_score
         else:
             fid_score = calculate_fid_given_paths([fingerprint_path+".npz", opt.target_domain_A_fid_file], batch_size=50, device='cuda', dims=2048)
-        all_fid_scores["FID_" + os.path.basename(opt.name) + "_" + str(checkpoint[:-12]) + ": generated " + os.path.basename(opt.dataroot) + " as " + os.path.basename(opt.target_domain) + " vs. " + os.path.basename(opt.target_domain)] = fid_score
+            all_fid_scores["FID_" + os.path.basename(opt.name) + "_" + str(checkpoint[:-12]) + ": generated " + os.path.basename(opt.dataroot) + " as " + os.path.basename(opt.target_domain) + " vs. " + os.path.basename(opt.target_domain_A_fid_file)] = fid_score
 
     with open(opt.name+"/fid_scores.csv" , "w") as fid_csv_scores:
         for key in all_fid_scores.keys():
