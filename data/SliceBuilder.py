@@ -46,7 +46,7 @@ def build_slices(dataset, patch_shape, stride_shape):
         [(slice, slice, slice), ...] if len(shape) == 3
     """
     slices = []
-    if dataset.ndim == 4:
+    if dataset.ndim == 3:
         in_channels, i_y, i_x = dataset.shape
     else:
         i_y, i_x = dataset.shape
@@ -67,6 +67,7 @@ def build_slices(dataset, patch_shape, stride_shape):
     return slices
 
 def _gen_indices(i, k, s):
+    #print(i, k)
     assert i >= k, 'Sample size has to be bigger than the patch size'
     for j in range(0, i - k + 1, s):
         yield j

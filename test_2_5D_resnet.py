@@ -53,7 +53,7 @@ def inference_2_5D_resnet(opt):
 
     adjust_patch_size(opt)
     patch_size = opt.patch_size
-    stride = opt.patch_size - 8
+    stride = opt.patch_size - 16
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
@@ -82,12 +82,15 @@ def inference_2_5D_resnet(opt):
             if direction == 'xy':
                 full_raw_dim_1 = data['A_full_size_raw'][1]
                 full_raw_dim_2 = data['A_full_size_raw'][2]
+
             if direction == 'zy':
                 full_raw_dim_1 = data['A_full_size_raw'][0]
                 full_raw_dim_2 = data['A_full_size_raw'][1]
+
             if direction == 'zx':
                 full_raw_dim_1 = data['A_full_size_raw'][2]
                 full_raw_dim_2 = data['A_full_size_raw'][0]
+
             print('predictions for orthopatches: ', direction)
 
             data_is_array = False
@@ -116,6 +119,7 @@ def inference_2_5D_resnet(opt):
                         if direction == 'zx':
                             prediction_map = prediction_map[0:data['A_full_size_raw'][2], 0:data['A_full_size_raw'][0]]
 
+                        #print(prediction_map.shape, normalization_map.shape)
                         dir_volume.append(prediction_map)
                         normalization_volume.append(normalization_map)
 
@@ -156,7 +160,7 @@ def inference_2_5D_resnet(opt):
 
         print("writing prediction of shape: ", prediction_volume_full.shape)
 
-        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume_full)
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume_full[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]])
 
 # pad and unpad functions from pytorch 3d unet by wolny
 

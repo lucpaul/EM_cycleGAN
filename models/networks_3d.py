@@ -156,6 +156,8 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
     elif netG == 'resnet_3blocks':
         net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=3)
+    elif netG == 'resnet_2blocks':
+        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=2)
     elif netG == 'unet_8':
         net = UnetGenerator(input_nc, output_nc, 3, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_16':
@@ -356,14 +358,14 @@ class ResnetGenerator(nn.Module):
 
         model = [nn.ReflectionPad3d(3),
                  nn.Conv3d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
-                 norm_layer(ngf),
+                 norm_layer(ngf, track_running_stats=True),
                  nn.ReLU(True)]
 
         n_downsampling = 2
         for i in range(n_downsampling):  # add downsampling layers
             mult = 2 ** i
             model += [nn.Conv3d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                      norm_layer(ngf * mult * 2),
+                      norm_layer(ngf * mult * 2, track_running_stats=True),
                       nn.ReLU(True)]
 
         mult = 2 ** n_downsampling
@@ -377,7 +379,7 @@ class ResnetGenerator(nn.Module):
                                          kernel_size=3, stride=2,
                                          padding=1, output_padding=1,
                                          bias=use_bias),
-                      norm_layer(int(ngf * mult / 2)),
+                      norm_layer(int(ngf * mult / 2), track_running_stats=True),
                       nn.ReLU(True)]
         model += [nn.ReflectionPad3d(3)]
         model += [nn.Conv3d(ngf, output_nc, kernel_size=7, padding=0)]

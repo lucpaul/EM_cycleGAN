@@ -46,16 +46,16 @@ def inference_2_5D(opt):
     opt.ngf = int(dicti['ngf'])
     assert dicti['train_mode'] == '2d', "For 2.5D (orthoslice) predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
 
-    adjust_patch_size(opt)
+    #adjust_patch_size(opt)
     patch_size = opt.patch_size
 
     # A quick calculation to ensure tile-and-stitch compatible stride for the given patch size and backbone
-    difference = 0
-    for i in range(2, int(math.log(int(opt.netG[5:]), 2) + 2)):
-        difference += 2 ** i
-    stride = patch_size - difference - 2
-
-    init_padding = int((patch_size - stride) / 2)
+    # difference = 0
+    # for i in range(2, int(math.log(int(opt.netG[5:]), 2) + 2)):
+    #     difference += 2 ** i
+    # stride = patch_size - difference - 2
+    #
+    # init_padding = int((patch_size - stride) / 2)
     dataset = create_dataset(opt)
     model = create_model(opt)      # create a model given opt.model and other options
     model.setup(opt)               # regular setup: load and print networks; create schedulers
@@ -67,8 +67,7 @@ def inference_2_5D(opt):
     model.eval()
 
     for j, data in enumerate(dataset):
-
-        print(data['A_full_size_pad'], data['A_full_size_raw'])
+        #print(data['full_size_pad'], data['full_size_raw'])
         # size_0 = stride * math.ceil(((data['A_full_size_pad'][0] - patch_size) / stride) + 1)
         # size_1 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
         # size_2 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
@@ -84,36 +83,39 @@ def inference_2_5D(opt):
             if direction == 'xy':
                 full_pad_dim_1 = data['A_full_size_pad'][1]
                 full_pad_dim_2 = data['A_full_size_pad'][2]
+                print("xy:",full_pad_dim_1, full_pad_dim_2)
             if direction == 'zy':
                 full_pad_dim_1 = data['A_full_size_pad'][0]
                 full_pad_dim_2 = data['A_full_size_pad'][1]
+                print("zy:", full_pad_dim_1, full_pad_dim_2)
             if direction == 'zx':
                 full_pad_dim_1 = data['A_full_size_pad'][2]
                 full_pad_dim_2 = data['A_full_size_pad'][0]
+                print("zx:", full_pad_dim_1, full_pad_dim_2)
             print('predictions for orthopatches: ', direction)
-            #print(len(data[direction]))
             for i in tqdm(range(0, len(data[direction])), desc="Inference progress"):
-                size_0 = stride * math.ceil(((full_pad_dim_1 - patch_size) / stride) + 1)
-                size_1 = stride * math.ceil(((full_pad_dim_2 - patch_size) / stride) + 1)
-                input = data[direction][i]
+                size_0 = full_pad_dim_1 #stride * math.ceil(((full_pad_dim_1 - patch_size) / stride) + 1)
+                size_1 = full_pad_dim_2 #stride * math.ceil(((full_pad_dim_2 - patch_size) / stride) + 1)
+                #print(size_0, size_1)
+                input = data[direction][i] # instead of A
                 model.set_input(input)
                 model.test()
                 img = model.fake
-                img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
+                #img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
                 if i % data['patches_per_slice'+"_"+direction] == 0:
                     if i != 0:
                         if direction == 'xy':
-                            prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                            prediction_map = prediction_map[0:data['A_full_size_pad'][1], 0:data['A_full_size_pad'][2]]
                         if direction == 'zy':
-                            prediction_map = prediction_map[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1]]
+                            prediction_map = prediction_map[0:data['A_full_size_pad'][0], 0:data['A_full_size_pad'][1]]
                         if direction == 'zx':
-                            prediction_map = prediction_map[0:data['A_full_size_raw'][2], 0:data['A_full_size_raw'][0]]
-
+                            prediction_map = prediction_map[0:data['A_full_size_pad'][2], 0:data['A_full_size_pad'][0]]
 
                         dir_volume.append(prediction_map)
 
                     prediction_map = np.zeros((size_0, size_1), dtype=np.float32)
-                    prediction_slices = build_slices(prediction_map, [stride,stride], [stride,stride])
+                    #print(prediction_map.shape)
+                    prediction_slices = build_slices(prediction_map, [patch_size,patch_size], [patch_size,patch_size])
                     pred_index = 0
 
                 img = torch.squeeze(torch.squeeze(img, 0), 0)
@@ -121,13 +123,11 @@ def inference_2_5D(opt):
 
                 prediction_map[prediction_slices[pred_index]] += img
                 pred_index += 1
+
                 if i == len(data[direction]) - 1:
-                    if direction == 'xy':
-                        prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
-                    if direction == 'zy':
-                        prediction_map = prediction_map[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1]]
-                    if direction == 'zx':
-                        prediction_map = prediction_map[0:data['A_full_size_raw'][2], 0:data['A_full_size_raw'][0]]
+                    #prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                    dir_volume.append(prediction_map)
+            #print("append"len(dir_volume))
 
             prediction_volume.append(dir_volume)
 
@@ -146,7 +146,7 @@ def inference_2_5D(opt):
 
         print("writing prediction of shape: ", prediction_volume_full.shape)
 
-        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume_full)
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume_full[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]])
 
         prediction_volume_full = None
         prediction_volume = None

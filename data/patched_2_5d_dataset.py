@@ -46,7 +46,7 @@ class patched25ddataset(BaseDataset2D):
             self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
         elif opt.netG.startswith('resnet') or opt.netG.startswith('swinunetr'):
             opt.netG = opt.netG[:14]
-            self.stride = self.patch_size - 8
+            self.stride = self.patch_size - 16
             self.init_padding = np.asarray([0, 0, 0])
 
     def __getitem__(self, index):
@@ -65,6 +65,9 @@ class patched25ddataset(BaseDataset2D):
         ])
 
         A_img_full = tifffile.imread(A_path)
+        if len(A_img_full.shape) > 2:
+            A_img_full = np.squeeze(A_img_full)
+
         A_img_size_raw = A_img_full.shape
 
         z1, y1, x1 = 1, 1, 1
@@ -113,7 +116,6 @@ class patched25ddataset(BaseDataset2D):
                 A_img_patch = torch.unsqueeze(A_img_patch, 0)
                 patches_3.append(A_img_patch)
 
-        print(A_img_size_raw, A_img_size_pad)
         return {'xy': patches, 'zy': patches_2, 'zx': patches_3,
                 'A_paths': A_path, 'A_full_size_raw': A_img_size_raw,
                 'A_full_size_pad': A_img_size_pad,

@@ -84,6 +84,7 @@ def inference(opt):
             input_list = data['A'][0]
         elif type(data['A']) == list:
             input_list = data['A']
+
         for i in tqdm(range(0, len(input_list)), desc ="Inference progress"):
             input = input_list[i]
             input = transform(input)
@@ -104,14 +105,19 @@ def inference(opt):
                     prediction_volume.append(prediction_map)
                     normalization_volume.append(normalization_map)
 
-                prediction_map = np.zeros((data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.float32)
-                normalization_map = np.zeros((data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.uint8)
+                prediction_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.float32)
+                normalization_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.uint8)
+
+                # prediction_map = np.zeros((data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.float32)
+                # normalization_map = np.zeros((data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.uint8)
                 prediction_slices = build_slices(prediction_map, [patch_size, patch_size], [stride, stride])
+                #prediction_slices = build_slices(prediction_map, [patch_size, patch_size], [patch_size, patch_size])
                 pred_index = 0
 
             img = _unpad(img, patch_halo)
             img = torch.squeeze(torch.squeeze(img, 0), 0)
             img = tensor2im(img)
+            #print(prediction_map.shape, pred_index)
             normalization_map[prediction_slices[pred_index]] += 1
 
             prediction_map[prediction_slices[pred_index]] += img  # torch.squeeze(torch.squeeze(img, 0), 0)
@@ -126,7 +132,8 @@ def inference(opt):
         prediction_volume = prediction_volume / normalization_volume
 
         prediction_volume = (prediction_volume * 255).astype(np.uint8)
-        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)
+        #tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]])
 
 # pad and unpad functions from pytorch 3d unet by wolny
 

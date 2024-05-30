@@ -51,7 +51,7 @@ def inference(opt):
 
     adjust_patch_size(opt)
     patch_size = opt.patch_size
-    stride = opt.patch_size
+    stride = opt.patch_size - 16
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)  # create a model given opt.model and other options
@@ -89,19 +89,23 @@ def inference(opt):
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
 
+            #print(input.min(), input.max(), input.shape)
             input = _pad(input, patch_halo)
-
+            #print(input.min(), input.max(), input.shape)
             model.set_input(input)
             model.test()
             img = model.fake
+            #print(img.min(), img.max(), img.shape)
 
             if prediction_map is None:
                 prediction_map = np.zeros((data['A_full_size_raw'][0], data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.float32)
                 normalization_map = np.zeros((data['A_full_size_raw'][0], data['A_full_size_raw'][1], data['A_full_size_raw'][2]), dtype=np.uint8)
-
+                #prediction_map = np.zeros((data['A_full_size_pad'][0], data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.float32)
+                #normalization_map = np.zeros((data['A_full_size_pad'][0], data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.uint8)
                 prediction_slices = build_slices_3d(prediction_map, [patch_size, patch_size, patch_size], [stride, stride, stride])
 
             img = _unpad(img, patch_halo)
+            #print(img.shape, print(len(prediction_slices)))
             img = torch.squeeze(torch.squeeze(img, 0), 0)
             img = tensor2im(img)
             normalization_map[prediction_slices[i]] += 1
@@ -111,8 +115,10 @@ def inference(opt):
         prediction_map = prediction_map / normalization_map
 
         prediction_map = (255 * (prediction_map - prediction_map.min()) / ((prediction_map.max() - prediction_map.min()))).astype(np.uint8)
+        #prediction_map = (255 * (prediction_map) / (prediction_map.max())).astype(np.uint8)
 
-        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_map)
+        # tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_map)
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_map[0:data['A_full_size_raw'][0], 0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]])
 
 
 # pad and unpad functions from pytorch 3d unet by wolny

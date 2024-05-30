@@ -5,12 +5,14 @@ so that this class can load images from both current directory and its subdirect
 """
 
 import os
+from glob import glob
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
     '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP',
     '.tif', '.TIF', '.tiff', '.TIFF', '.nii'
 ]
+
 
 def is_image_file(filename):
     return any(filename.endswith(extension) for extension in IMG_EXTENSIONS)
@@ -25,4 +27,12 @@ def make_dataset(dir, max_dataset_size=float("inf")):
             if is_image_file(fname):
                 path = os.path.join(root, fname)
                 images.append(path)
+    return images[:min(max_dataset_size, len(images))]
+
+
+def make_zarr_dataset(dir, max_dataset_size=float("inf")):
+    #images = []
+    assert os.path.isdir(dir), '%s is not a valid directory' % dir
+
+    images = glob(dir + "/*.zarr")
     return images[:min(max_dataset_size, len(images))]

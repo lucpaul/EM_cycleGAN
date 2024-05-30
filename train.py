@@ -38,6 +38,7 @@ def train(opt):
     gc.collect()
     torch.cuda.empty_cache()
     if opt.train_mode == "3d":
+        #opt.dataset_mode = 'zarr'
         opt.dataset_mode = 'patched_unaligned_3d'
     elif opt.train_mode == "2d":
         opt.dataset_mode = 'patched_unaligned_2d'

@@ -88,7 +88,11 @@ class ImagePathDataset(torch.utils.data.Dataset):
             path = self.files[i]
             img = Image.open(path).convert('RGB')
         elif type(self.files) == list:
-            img = TF.ToPILImage()(self.files[i])
+            if self.files[i].ndim == 4 or self.files[i].ndim == 3:
+                img = torch.squeeze(self.files[i], 0)
+            else:
+                img = self.files[i]
+            img = TF.ToPILImage()(img)
             img = img.convert('RGB')
         #img = Image.open(path).convert('RGB') # I make one important edit compared to the authors of pytorch-fid, by removing the requirement to load images from disk.
         if self.transforms is not None:
@@ -331,6 +335,6 @@ def main():
                                           args.dims,
                                           num_workers)
 
-
-if __name__ == '__main__':
-    main()
+print(calculate_fid_given_paths(["/home/lucas2/Projects/MitoEM/FID/im_R_full_stack.npz", "/home/lucas2/Projects/MitoEM/FID/im_H_full_stack.npz"], 50, "cuda", 2048))
+# if __name__ == '__main__':
+#     main()

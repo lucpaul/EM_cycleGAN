@@ -51,6 +51,8 @@ class BaseOptions():
         parser.add_argument('--patch_size', type=int, default=96, help='the patch size to create tiles from the dataset with')
         parser.add_argument('--stride_A', type=int, default=96, help='stride between individual patches for dataset A')
         parser.add_argument('--stride_B', type=int, default=400, help='stride between individual patches for dataset B')
+        parser.add_argument('--zarr_key', type=str, default="volumes/raw", help='input key to read zarr file dataset')
+
         # additional parameters
         parser.add_argument('--epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         parser.add_argument('--load_iter', type=int, default='0', help='which iteration to load? if load_iter > 0, the code will load models by iter_[load_iter]; otherwise, the code will load models by [epoch]')

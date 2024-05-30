@@ -36,7 +36,8 @@ class patched2ddataset(BaseDataset2D):
         self.A_paths = sorted(make_dataset(opt.dataroot, opt.max_dataset_size))
         self.transform = get_transform(opt)
         self.patch_size = np.asarray([opt.patch_size, opt.patch_size])
-
+        self.stride = self.patch_size
+        # Uncomment for tile-and-stitch Unet
         if opt.netG.startswith('unet'):
             difference = 0
             for i in range(2, int(math.log(int(opt.netG[5:]), 2)) + 2):
@@ -62,6 +63,7 @@ class patched2ddataset(BaseDataset2D):
 
         A_img_size_raw = A_img_full.shape # Get the raw image size
 
+        # Uncomment for tile-and-stitch Unet
         if self.opt.netG.startswith('unet'):
             y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=patch_size, stride=stride)
             init_padding_param = int(self.init_padding[0])
@@ -99,7 +101,6 @@ class patched2ddataset(BaseDataset2D):
             A_paths(str) - - the path of the image
         """
 
-        #print("getItem: ", self.patch_size, self.stride)
         patches, img_sizes, patches_per_slice = self.build_patches(self.A_paths[index], self.patch_size, self.stride)
 
         A_path = self.A_paths[index]

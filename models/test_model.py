@@ -25,10 +25,10 @@ class TestModel(BaseModel):
         parser.add_argument('--model_suffix', type=str, default='_A', help='In checkpoints_dir, [epoch]_net_G[model_suffix].pth will be loaded as the generator.')
         # Below options are only when evaluating model using fid etc.
         parser.add_argument('--eval_direction', type=str, default='both-ways', help='whether to evaluate only domain A to domain B or both-ways.')
-        parser.add_argument('--target_domain', type=str, default='', help='if eval_direction=both-ways, then the model in the reverse direction (BtoA) will be evaluated on this dataset')
+        parser.add_argument('--target_domain', type=str, default='', help='The images the generations should be evaluated against. If eval_dir=both-ways, this dynamically swaps with source_domain during fid score calculation.')
         parser.add_argument('--source_domain',  type=str, default='', help='initially this will be equivalent to dataroot, but can be dynamically changed if eval_direction=both-ways')
-        parser.add_argument('--target_domain_A_fid_file', type=str, default='', help='Only required when eval_direction=both-ways. Gives path to a FID .npz file from the source domain. When model was trained with trainA and trainB, this should be from A.')
-        parser.add_argument('--target_domain_B_fid_file', type=str, default='', help='required. Gives path to a FID .npz file from the source domain. When models was trained with trainA and trainB, this should be from B.')
+        parser.add_argument('--target_domain_fid_file', type=str, default='', help='File containing features from the target image dataset. If not provided, this is calculated from the images in target_domain.')
+        parser.add_argument('--source_domain_fid_file', type=str, default='', help='File containing features from the source dataset. Only required for eval_direction=both-ways analysis')
         return parser
 
     def __init__(self, opt):

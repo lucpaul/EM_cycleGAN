@@ -49,16 +49,16 @@ def inference(opt):
         opt.ngf = int(dicti['ngf'])
     assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
 
-    adjust_patch_size(opt)
+    #adjust_patch_size(opt)
     patch_size = opt.patch_size
 
     # Need to still test this again
-    difference = 0
-    for i in range(2, int(math.log(int(opt.netG[5:]), 2)+2)):
-        difference += 2 ** i
-    stride = patch_size - difference - 2
-
-    init_padding = int((patch_size - stride) / 2)
+    # difference = 0
+    # for i in range(2, int(math.log(int(opt.netG[5:]), 2)+2)):
+    #     difference += 2 ** i
+    # stride = patch_size - difference - 2
+    #
+    # init_padding = int((patch_size - stride) / 2)
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
     model = create_model(opt)      # create a model given opt.model and other options
@@ -92,19 +92,20 @@ def inference(opt):
             model.test()
             img = model.fake
             # print(img.shape)
-            img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
+            #img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
             # print(img.shape)
-            size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
-            size_1 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
+            #size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
+            #size_1 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
 
 
             if i % int(data['patches_per_slice']) == 0:
                 if i != 0:
-                    prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                    prediction_map = prediction_map[0:data['A_full_size_pad'][1], 0:data['A_full_size_pad'][2]]
                     prediction_volume.append(prediction_map)
-
-                prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
-                prediction_slices = build_slices(prediction_map, [stride, stride], [stride, stride])
+                prediction_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.uint8)
+                #prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
+                #prediction_slices = build_slices(prediction_map, [stride, stride], [stride, stride])
+                prediction_slices = build_slices(prediction_map, [patch_size, patch_size], [patch_size, patch_size])
                 pred_index = 0
 
             img = torch.squeeze(torch.squeeze(img, 0), 0)
@@ -114,12 +115,13 @@ def inference(opt):
             pred_index += 1
 
             if i == len(input_list)-1:
-                prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                #prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
                 prediction_volume.append(prediction_map)
-
+        #print(prediction_volume[0].shape, prediction_volume[-1].shape)
+        #print(prediction_map.shape)
         prediction_volume = np.asarray(prediction_volume)
 
-        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)
+        tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume[:, 0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]])
 
 if __name__ == '__main__':
     # read out sys.argv arguments and parse

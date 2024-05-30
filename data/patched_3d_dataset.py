@@ -52,7 +52,7 @@ class patched3ddataset(BaseDataset3D):
             stride = opt.patch_size - difference - 2
             self.stride = np.asarray([stride, stride, stride])
         else:
-            self.stride = self.patch_size
+            self.stride = self.patch_size - 16
 
         self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
 
@@ -69,11 +69,12 @@ class patched3ddataset(BaseDataset3D):
         A_img_size_raw = A_img_full.shape # Get the raw image size
 
         if self.opt.netG.startswith('unet'):
-            # This allows tile-and-stitch inference, i.e. without stitching artefacts.
+            #This allows tile-and-stitch inference, i.e. without stitching artefacts.
             z1, y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=patch_size, stride=stride)
             init_padding_param = int(self.init_padding[0])
             A_img_full = np.pad(A_img_full, pad_width=((init_padding_param, z1), (init_padding_param, y1), (init_padding_param, x1)), mode="reflect")
 
+        print(A_img_full.shape, patch_size.shape, stride.shape)
         slices = build_slices_3d(A_img_full, patch_size, stride)
 
         A_img_size_pad = A_img_full.shape
