@@ -27,7 +27,6 @@ import torch
 from tqdm import tqdm
 from util.util import adjust_patch_size
 
-
 try:
     import wandb
 except ImportError:
@@ -35,7 +34,6 @@ except ImportError:
 
 
 def inference(opt):
-
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
     for x in range(1, len(model_settings) - 1):
@@ -47,25 +45,28 @@ def inference(opt):
     opt.netG = dicti['netG']
     if opt.netG.startswith('unet') or opt.netG.startswith('resnet'):
         opt.ngf = int(dicti['ngf'])
-    assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
+    assert dicti[
+               'train_mode'
+           ] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
 
     adjust_patch_size(opt)
     patch_size = opt.patch_size
 
     # Need to still test this again
     difference = 0
-    for i in range(2, int(math.log(int(opt.netG[5:]), 2)+2)):
+    for i in range(2, int(math.log(int(opt.netG[5:]), 2) + 2)):
         difference += 2 ** i
     stride = patch_size - difference - 2
 
     init_padding = int((patch_size - stride) / 2)
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
-    model = create_model(opt)      # create a model given opt.model and other options
-    model.setup(opt)               # regular setup: load and print networks; create schedulers
+    model = create_model(opt)  # create a model given opt.model and other options
+    model.setup(opt)  # regular setup: load and print networks; create schedulers
     # initialize logger
     if opt.use_wandb:
-        wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
+        wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name,
+                               config=opt) if not wandb.run else wandb.run
         wandb_run._label(repo='CycleGAN-and-pix2pix')
 
     model.eval()
@@ -82,50 +83,75 @@ def inference(opt):
         elif type(data['A']) == list:
             input_list = data['A']
         print("input_patches: ", len(input_list))
-        for i in tqdm(range(0, len(input_list)), desc="Inference progress"):
-            input = input_list[i]
+
+        # initialize prediction map and slices
+        prediction_map = None
+        prediction_slices = None
+        pred_index = 0
+
+        for i in tqdm(range(0, math.ceil(len(input_list) / opt.batch_size)), desc="Inference progress"):
+            input = input_list[i * opt.batch_size:i * opt.batch_size + opt.batch_size]
+            # cat input patches to a batch
+            input = torch.cat(input, dim=0)
             input = transform(input)
+
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
+
             # print(input.shape)
             model.set_input(input)
             model.test()
-            img = model.fake
-            # print(img.shape)
-            img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
-            # print(img.shape)
-            size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
-            size_1 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
+            img_batched = model.fake
 
+            # iterate over batch
+            for b in range(0, opt.batch_size):
 
-            if i % int(data['patches_per_slice']) == 0:
-                if i != 0:
+                # condition to check for batch not fully filled
+                if b + i * opt.batch_size >= len(input_list):
+                    break
+
+                patch_index = i * opt.batch_size + b
+                # get singe patch from batch
+                img = img_batched[b]
+
+                # re-create batch dimensio
+                img = torch.unsqueeze(img, 0)
+
+                # print(img.shape)
+                img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
+                # print(img.shape)
+                size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
+                size_1 = stride * math.ceil(((data['A_full_size_pad'][2] - patch_size) / stride) + 1)
+
+                if patch_index % int(data['patches_per_slice']) == 0:
+                    if patch_index != 0:
+                        prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                        prediction_volume.append(prediction_map)
+
+                    prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
+                    prediction_slices = build_slices(prediction_map, [stride, stride], [stride, stride])
+                    pred_index = 0
+
+                # squeeze and convert to numpy
+                img = torch.squeeze(torch.squeeze(img, 0), 0)
+                img = (tensor2im(img) * 255).astype(np.uint8)
+
+                prediction_map[prediction_slices[pred_index]] += img
+                pred_index += 1
+
+                if patch_index == len(input_list) - 1:
                     prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
                     prediction_volume.append(prediction_map)
-
-                prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
-                prediction_slices = build_slices(prediction_map, [stride, stride], [stride, stride])
-                pred_index = 0
-
-            img = torch.squeeze(torch.squeeze(img, 0), 0)
-            img = (tensor2im(img) * 255).astype(np.uint8)
-
-            prediction_map[prediction_slices[pred_index]] += img
-            pred_index += 1
-
-            if i == len(input_list)-1:
-                prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
-                prediction_volume.append(prediction_map)
 
         prediction_volume = np.asarray(prediction_volume)
 
         tifffile.imwrite(opt.results_dir + "/generated_" + os.path.basename(data['A_paths'][0]), prediction_volume)
 
+
 if __name__ == '__main__':
     # read out sys.argv arguments and parse
     opt = TestOptions().parse()
     opt.num_threads = 0  # test code only supports num_threads = 0
-    opt.batch_size = 1  # test code only supports batch_size = 1
     opt.input_nc = 1
     opt.output_nc = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
