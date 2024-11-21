@@ -74,7 +74,7 @@ class CustomDatasetDataLoader():
         print("dataset [%s] was created" % type(self.dataset).__name__)
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
-            batch_size=opt.batch_size,
+            batch_size=1,  # We do not use batch size from DataLoader class here, but build our own batch size
             shuffle=not opt.serial_batches,
             num_workers=int(opt.num_threads))#,
             #pin_memory=True)

@@ -1,17 +1,22 @@
+import math
+
+import numpy as np
+import tifffile
+
+from .SliceBuilder import build_slices
 from .base_dataset_2d import BaseDataset2D, get_transform
 from .image_folder import make_dataset
-import tifffile
-import math
-from .SliceBuilder import build_slices
-import numpy as np
+
 
 def _calc_padding(volume_shape, init_padding, input_patch_size, stride):
     number_of_patches = np.ma.ceil(((volume_shape[1:] + init_padding - input_patch_size) / stride) + 1)
-    volume_new = ((np.asarray(number_of_patches))*stride) + input_patch_size
+    volume_new = ((np.asarray(number_of_patches)) * stride) + input_patch_size
     new_padding = volume_new - volume_shape[1:] - init_padding
 
-    new_padding = np.where(new_padding > ((input_patch_size - stride) / 2), new_padding, new_padding + (input_patch_size - stride))
+    new_padding = np.where(new_padding > ((input_patch_size - stride) / 2), new_padding,
+                           new_padding + (input_patch_size - stride))
     return new_padding.astype(int)
+
 
 class patched2ddataset(BaseDataset2D):
     """This dataset class can load a set of images specified by the path --dataroot /path/to/data.
@@ -48,29 +53,32 @@ class patched2ddataset(BaseDataset2D):
             self.stride = self.patch_size - 16
 
         assert self.patch_size.all() >= self.stride.all(), f"Images can only be stitched if patch size is at least equal to stride, but not smaller. " \
-                                                        f"Given patch size is {self.patch_size} and stride {self.stride}. That won't work."
+                                                           f"Given patch size is {self.patch_size} and stride {self.stride}. That won't work."
         if opt.stitch_mode == "tile-and-stitch":
             self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
             # print("padding: ", self.init_padding)
         else:
-        # Init padding should be 0 for resnet, or padded unet.
+            # Init padding should be 0 for resnet, or padded unet.
             self.init_padding = np.asarray([0, 0])
+
     def build_patches(self, image_path, patch_size, stride):
         """We create a function which converts a volume into blocks using """
 
-        A_img_full = tifffile.imread(image_path) # Read image
-        #A_img_full = normalize(A_img_full, 0.1, 99.8) #Not tested the results for this yet
+        A_img_full = tifffile.imread(image_path)  # Read image
+        # A_img_full = normalize(A_img_full, 0.1, 99.8) #Not tested the results for this yet
         # We ensure that the volume is read in 3 dimensions. This will only work if the image has a single channel.
         if len(A_img_full.shape) > 2:
             A_img_full = np.squeeze(A_img_full)
 
-        A_img_size_raw = A_img_full.shape # Get the raw image size
+        A_img_size_raw = A_img_full.shape  # Get the raw image size
 
         # Uncomment for tile-and-stitch Unet
         if self.opt.netG.startswith('unet'):
-            y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=patch_size, stride=stride)
+            y1, x1 = _calc_padding(A_img_size_raw, init_padding=self.init_padding, input_patch_size=patch_size,
+                                   stride=stride)
             init_padding_param = int(self.init_padding[0])
-            A_img_full = np.pad(A_img_full, pad_width=((0, 0), (init_padding_param, y1), (init_padding_param, x1)), mode="reflect")
+            A_img_full = np.pad(A_img_full, pad_width=((0, 0), (init_padding_param, y1), (init_padding_param, x1)),
+                                mode="reflect")
 
         A_img_size_pad = A_img_full.shape
         img_sizes = (A_img_size_raw, A_img_size_pad)
@@ -84,10 +92,10 @@ class patched2ddataset(BaseDataset2D):
                 A_img_patch = np.expand_dims(A_img_patch, 0)
                 patches.append(A_img_patch)
 
-        #Converting to np.ndarray is a bit mysterious in terms of RAM use. Sometimes useful, sometimes catastrophic.
-        #Leaving it here in case it's needed again.
+        # Converting to np.ndarray is a bit mysterious in terms of RAM use. Sometimes useful, sometimes catastrophic.
+        # Leaving it here in case it's needed again.
 
-        #patches = np.array(patches)
+        # patches = np.array(patches)
 
         patches_per_slice = len(slices)
 
@@ -112,7 +120,8 @@ class patched2ddataset(BaseDataset2D):
 
         A_size_pad = img_sizes[1]
 
-        return {'A': patches, 'A_paths': A_path, 'A_full_size_raw': A_size_raw, 'A_full_size_pad': A_size_pad, 'patches_per_slice': patches_per_slice}
+        return {'A': patches, 'A_paths': A_path, 'A_full_size_raw': A_size_raw, 'A_full_size_pad': A_size_pad,
+                'patches_per_slice': patches_per_slice}
 
     def __len__(self):
         """Return the total number of images in the dataset."""

@@ -13,20 +13,21 @@ Example (You need to train models first):
                           --patch_size 190 --test_mode 2d --results_dir path/to/results
 
 See options/base_options.py and options/test_options.py for more test options."""
+import math
 import os
-from options.test_options import TestOptions
-from data import create_dataset
-from models import create_model
-from util.util import tensor2im
-from data.SliceBuilder import build_slices
+
 import numpy as np
 import tifffile
-import math
-from torchvision import transforms
 import torch
+from torchvision import transforms
 from tqdm import tqdm
-from util.util import adjust_patch_size
 
+from data import create_dataset
+from data.SliceBuilder import build_slices
+from models import create_model
+from options.test_options import TestOptions
+from util.util import adjust_patch_size
+from util.util import tensor2im
 
 try:
     import wandb
@@ -46,13 +47,14 @@ def inference(opt):
     opt.netG = dicti['netG']
     if opt.netG.startswith('unet') or opt.netG.startswith('resnet'):
         opt.ngf = int(dicti['ngf'])
-    assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
+    assert dicti[
+               'train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
 
     if opt.stitch_mode == "tile-and-stitch":
         adjust_patch_size(opt)
         patch_size = opt.patch_size
         difference = 0
-        for i in range(2, int(math.log(int(opt.netG[5:]), 2)+2)):
+        for i in range(2, int(math.log(int(opt.netG[5:]), 2) + 2)):
             difference += 2 ** i
         stride = patch_size - difference - 2
         init_padding = int((patch_size - stride) / 2)
@@ -60,20 +62,20 @@ def inference(opt):
 
     elif opt.stitch_mode == "overlap-averaging":
         stride = opt.patch_size - 16
-        patch_halo = (8,8)
-    #patch_size = opt.patch_size
+        patch_halo = (8, 8)
+    # patch_size = opt.patch_size
 
     # Need to still test this again
 
     dataset = create_dataset(opt)  # create a dataset given opt.dataset_mode and other options
-    model = create_model(opt)      # create a model given opt.model and other options
+    model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)
 
     for module in model.netG.modules():
         if isinstance(module, torch.nn.Conv2d) or isinstance(module, torch.nn.ConvTranspose2d):
             if opt.stitch_mode == "tile-and-stitch" or opt.stitch_mode == "valid-no-crop":
-                #parameters = model.netG.module.parameters()
-                module.padding = (0,0)
+                # parameters = model.netG.module.parameters()
+                module.padding = (0, 0)
 
                 # layer = model.netG.module
                 # print(layer)
@@ -84,14 +86,15 @@ def inference(opt):
                 #         print(new_module)
                 #         model.netG.module.new_module.padding = (0,0)
 
-                #features = model.netG.module.parameters()
+                # features = model.netG.module.parameters()
             else:
                 model.netG.module.model.padding = 1
 
     # regular setup: load and print networks; create schedulers
     # initialize logger
     if opt.use_wandb:
-        wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name, config=opt) if not wandb.run else wandb.run
+        wandb_run = wandb.init(project=opt.wandb_project_name, name=opt.name,
+                               config=opt) if not wandb.run else wandb.run
         wandb_run._label(repo='CycleGAN-and-pix2pix')
 
     model.eval()
@@ -115,7 +118,7 @@ def inference(opt):
         prediction_slices = None
         pred_index = 0
 
-        for i in tqdm(range(0, math.ceil(len(input_list)/opt.batch_size)), desc="Inference progress"):
+        for i in tqdm(range(0, math.ceil(len(input_list) / opt.batch_size)), desc="Inference progress"):
             input = input_list[i * opt.batch_size:i * opt.batch_size + opt.batch_size]
             input = torch.cat(input, dim=0)
             input = transform(input)
@@ -153,11 +156,12 @@ def inference(opt):
                     if i != 0:
                         if opt.stitch_mode == "tile-and-stitch":
                             prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
-                            #print("Data Raw Map: ", data['A_full_size_raw'][1], data['A_full_size_raw'][2])
-                            #prediction_volume.append(prediction_map)
+                            # print("Data Raw Map: ", data['A_full_size_raw'][1], data['A_full_size_raw'][2])
+                            # prediction_volume.append(prediction_map)
 
                         elif opt.stitch_mode == "valid-no-crop":
-                            prediction_map = prediction_map[0:data['A_full_size_pad'][1], 0:data['A_full_size_pad'][2]] # is this even needed?
+                            prediction_map = prediction_map[0:data['A_full_size_pad'][1],
+                                             0:data['A_full_size_pad'][2]]  # is this even needed?
 
                         elif opt.stitch_mode == "overlap-averaging":
                             normalization_volume.append(normalization_map)
@@ -166,17 +170,21 @@ def inference(opt):
                         append_index += 1
                     # prediction_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.float32)
                     prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
-                    normalization_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.uint8)
+                    normalization_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]),
+                                                 dtype=np.uint8)
 
                     if opt.stitch_mode == "tile-and-stitch":
                         prediction_slices = build_slices(prediction_map, [stride, stride], [stride, stride])
 
                     elif opt.stitch_mode == "valid-no-crop":
-                        prediction_slices = build_slices(prediction_map, [opt.patch_size, opt.patch_size], [opt.patch_size, opt.patch_size])
+                        prediction_slices = build_slices(prediction_map, [opt.patch_size, opt.patch_size],
+                                                         [opt.patch_size, opt.patch_size])
 
                     elif opt.stitch_mode == "overlap-averaging":
-                        normalization_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]), dtype=np.uint8)
-                        prediction_slices = build_slices(prediction_map, [opt.patch_size, opt.patch_size], [stride, stride])
+                        normalization_map = np.zeros((data['A_full_size_pad'][1], data['A_full_size_pad'][2]),
+                                                     dtype=np.uint8)
+                        prediction_slices = build_slices(prediction_map, [opt.patch_size, opt.patch_size],
+                                                         [stride, stride])
 
                     pred_index = 0
 
@@ -193,7 +201,7 @@ def inference(opt):
 
                 pred_index += 1
 
-                if i == len(input_list)-1:
+                if patch_index == len(input_list) - 1:
                     prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
                     prediction_volume.append(prediction_map)
 
@@ -226,11 +234,12 @@ def _unpad(m, patch_halo):
         return m[..., y:-y, x:-x]
     return m
 
+
 if __name__ == '__main__':
     # read out sys.argv arguments and parse
     opt = TestOptions().parse()
     opt.num_threads = 0  # test code only supports num_threads = 0
-    #opt.batch_size = 1  # test code only supports batch_size = 1
+    # opt.batch_size = 1  # test code only supports batch_size = 1
     opt.input_nc = 1
     opt.output_nc = 1
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
