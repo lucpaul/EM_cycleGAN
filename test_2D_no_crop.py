@@ -88,10 +88,11 @@ def inference(opt):
             if data_is_array:
                 input = torch.unsqueeze(input, 0)
             # print(input.shape)
+            #print("Input: ", input.shape)
             model.set_input(input)
             model.test()
             img = model.fake
-            # print(img.shape)
+            #print("Output: ", img.shape)
             #img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
             # print(img.shape)
             #size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
@@ -110,7 +111,7 @@ def inference(opt):
 
             img = torch.squeeze(torch.squeeze(img, 0), 0)
             img = (tensor2im(img) * 255).astype(np.uint8)
-
+            # print(len(prediction_slices))
             prediction_map[prediction_slices[pred_index]] += img
             pred_index += 1
 

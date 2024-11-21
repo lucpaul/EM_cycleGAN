@@ -102,7 +102,7 @@ def inference(opt):
             model.set_input(input)
             model.test()
             img_batched = model.fake
-
+            print(data['A_full_size_raw'], data['A_full_size_pad'])
             # iterate over batch
             for b in range(0, opt.batch_size):
 
@@ -114,10 +114,8 @@ def inference(opt):
                 # get singe patch from batch
                 img = img_batched[b]
 
-                # re-create batch dimensio
+                # re-create batch dimension
                 img = torch.unsqueeze(img, 0)
-
-                # print(img.shape)
                 img = img[:, :, init_padding:-init_padding, init_padding:-init_padding]
                 # print(img.shape)
                 size_0 = stride * math.ceil(((data['A_full_size_pad'][1] - patch_size) / stride) + 1)
@@ -126,6 +124,7 @@ def inference(opt):
                 if patch_index % int(data['patches_per_slice']) == 0:
                     if patch_index != 0:
                         prediction_map = prediction_map[0:data['A_full_size_raw'][1], 0:data['A_full_size_raw'][2]]
+                        #print("Data Raw Map: ", data['A_full_size_raw'][1], data['A_full_size_raw'][2])
                         prediction_volume.append(prediction_map)
 
                     prediction_map = np.zeros((size_0, size_1), dtype=np.uint8)
@@ -137,6 +136,7 @@ def inference(opt):
                 img = (tensor2im(img) * 255).astype(np.uint8)
 
                 prediction_map[prediction_slices[pred_index]] += img
+
                 pred_index += 1
 
                 if patch_index == len(input_list) - 1:

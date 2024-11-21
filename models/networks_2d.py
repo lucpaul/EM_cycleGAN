@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-from monai.networks.nets import swin_unetr
+#from monai.networks.nets import swin_unetr
 
 ###############################################################################
 # Helper Functions
@@ -163,9 +163,9 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
     elif netG == 'unet_256':
         net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    elif netG == 'swinunetr':
-        #net = SwinUnetrGenerator((96,96), input_nc, output_nc)
-        net = swin_unetr.SwinUNETR(img_size=(96,96), in_channels=input_nc, out_channels=output_nc, feature_size=48,use_checkpoint=True,spatial_dims=2)
+    # elif netG == 'swinunetr':
+    #     #net = SwinUnetrGenerator((96,96), input_nc, output_nc)
+    #     net = swin_unetr.SwinUNETR(img_size=(96,96), in_channels=input_nc, out_channels=output_nc, feature_size=48,use_checkpoint=True,spatial_dims=2)
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
     return init_net(net, init_type, init_gain, gpu_ids)
@@ -535,9 +535,13 @@ class UnetSkipConnectionBlock(nn.Module):
 
     def forward(self, x):
         if self.outermost:
-            return self.model(x)
+            output = self.model(x)
+            # print("Outermost: ", x.shape, output.shape)
+            return output #self.model(x)
         else:   # add skip connections
-            return torch.cat([x, self.model(x)], 1)
+            output = self.model(x)
+            # print("Other: ", x.shape, output.shape)
+            return torch.cat([x, output], 1)
 
 
 class NLayerDiscriminator(nn.Module):
@@ -619,19 +623,19 @@ class PixelDiscriminator(nn.Module):
         """Standard forward."""
         return self.net(input)
 
-class SwinUnetrGenerator(nn.Module):
-    def __init__(self, patch_size, input_nc, output_nc, ngf=48):
-        super(SwinUnetrGenerator, self).__init__()
-
-        model = swin_unetr.SwinUNETR(img_size=patch_size,
-                                     in_channels=input_nc,
-                                     out_channels=output_nc,
-                                     feature_size=ngf,
-                                     use_checkpoint=True,
-                                     spatial_dims=2)
-
-        self.model = model
-
-    def forward(self, input):
-        """Standard forward"""
-        return self.model(input)
+# class SwinUnetrGenerator(nn.Module):
+#     def __init__(self, patch_size, input_nc, output_nc, ngf=48):
+#         super(SwinUnetrGenerator, self).__init__()
+#
+#         model = swin_unetr.SwinUNETR(img_size=patch_size,
+#                                      in_channels=input_nc,
+#                                      out_channels=output_nc,
+#                                      feature_size=ngf,
+#                                      use_checkpoint=True,
+#                                      spatial_dims=2)
+#
+#         self.model = model
+#
+#     def forward(self, input):
+#         """Standard forward"""
+#         return self.model(input)

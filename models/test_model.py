@@ -29,6 +29,7 @@ class TestModel(BaseModel):
         parser.add_argument('--source_domain',  type=str, default='', help='initially this will be equivalent to dataroot, but can be dynamically changed if eval_direction=both-ways')
         parser.add_argument('--target_domain_fid_file', type=str, default='', help='File containing features from the target image dataset. If not provided, this is calculated from the images in target_domain.')
         parser.add_argument('--source_domain_fid_file', type=str, default='', help='File containing features from the source dataset. Only required for eval_direction=both-ways analysis')
+        parser.add_argument('--stitch_mode', type=str, default='tile-and-stitch', help='This argument determines how the output data will be stitched, default is tile-and-stitch other options are: "tile-and-stitch", "valid-no-crop", "overlap-average"')
         return parser
 
     def __init__(self, opt):

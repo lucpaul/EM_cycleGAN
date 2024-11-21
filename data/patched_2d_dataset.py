@@ -49,9 +49,12 @@ class patched2ddataset(BaseDataset2D):
 
         assert self.patch_size.all() >= self.stride.all(), f"Images can only be stitched if patch size is at least equal to stride, but not smaller. " \
                                                         f"Given patch size is {self.patch_size} and stride {self.stride}. That won't work."
-        self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
-
-
+        if opt.stitch_mode == "tile-and-stitch":
+            self.init_padding = ((self.patch_size - self.stride) / 2).astype(int)
+            # print("padding: ", self.init_padding)
+        else:
+        # Init padding should be 0 for resnet, or padded unet.
+            self.init_padding = np.asarray([0, 0])
     def build_patches(self, image_path, patch_size, stride):
         """We create a function which converts a volume into blocks using """
 

@@ -27,7 +27,7 @@ import torch
 from torch import nn
 from tqdm import tqdm
 from util.util import adjust_patch_size
-from matplotlib import pyplot as plt
+#from matplotlib import pyplot as plt
 
 try:
     import wandb
@@ -52,7 +52,7 @@ def inference(opt):
         opt.ngf = int(dicti['ngf'])
     assert dicti['train_mode'] == '2d', "For 2D predictions, the model needs to be a 2D model. This model was not trained on 2D patches."
 
-    adjust_patch_size(opt)
+    #adjust_patch_size(opt)
     patch_size = opt.patch_size
     stride = opt.patch_size - 16
 
@@ -60,7 +60,7 @@ def inference(opt):
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
-    patch_halo = (16, 16) # Makes an enormous difference in the quality of predictions
+    patch_halo = (8, 8) # Makes an enormous difference in the quality of predictions
 
     # initialize logger
     if opt.use_wandb:
