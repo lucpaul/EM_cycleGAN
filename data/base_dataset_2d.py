@@ -58,31 +58,38 @@ class BaseDataset2D(data.Dataset, ABC):
         """
         pass
 
-def get_transform(opt, params=None, grayscale=False, method=transforms.InterpolationMode.BICUBIC, convert=False):
+
+def get_transform(
+    opt,
+    params=None,
+    grayscale=False,
+    method=transforms.InterpolationMode.BICUBIC,
+    convert=False,
+):
     transform_list = []
     if grayscale:
         transform_list.append(transforms.Grayscale(1))
-    if 'resize' in opt.preprocess:
+    if "resize" in opt.preprocess:
         osize = [opt.load_size, opt.load_size]
         transform_list.append(transforms.Resize(osize, method))
-    elif 'scale_width' in opt.preprocess:
+    elif "scale_width" in opt.preprocess:
         transform_list.append(transforms.Lambda(lambda img: __scale_width(img, opt.load_size, opt.crop_size, method)))
 
-    if 'crop' in opt.preprocess:
+    if "crop" in opt.preprocess:
         if params is None:
             transform_list.append(transforms.RandomCrop(opt.crop_size))
         else:
-            transform_list.append(transforms.Lambda(lambda img: __crop(img, params['crop_pos'], opt.crop_size)))
+            transform_list.append(transforms.Lambda(lambda img: __crop(img, params["crop_pos"], opt.crop_size)))
 
-    if opt.preprocess == 'none':
-        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=2, method=method)))
-
+    if opt.preprocess == "none":
+        # transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=2, method=method)))
+        pass
     if not opt.no_flip:
         if params is None:
             transform_list.append(transforms.RandomHorizontalFlip(0.25))
             transform_list.append(transforms.RandomVerticalFlip(0.25))
-        elif params['flip']:
-            transform_list.append(transforms.Lambda(lambda img: __flip(img, params['flip'])))
+        elif params["flip"]:
+            transform_list.append(transforms.Lambda(lambda img: __flip(img, params["flip"])))
 
     if convert:
         transform_list += [transforms.ToTensor()]
@@ -93,56 +100,7 @@ def get_transform(opt, params=None, grayscale=False, method=transforms.Interpola
     return transforms.Compose(transform_list)
 
 
-def __transforms2pil_resize(method):
-    mapper = {transforms.InterpolationMode.BILINEAR: Image.BILINEAR,
-              transforms.InterpolationMode.BICUBIC: Image.BICUBIC,
-              transforms.InterpolationMode.NEAREST: Image.NEAREST,
-              transforms.InterpolationMode.LANCZOS: Image.LANCZOS,}
-    return mapper[method]
-
-
-def __make_power_2(img, base, method=transforms.InterpolationMode.BICUBIC):
-    method = __transforms2pil_resize(method)
-    ow, oh = img.size()[1:]
-    h = int(round(oh / base) * base)
-    w = int(round(ow / base) * base)
-    if h == oh and w == ow:
-        return img
-
-    __print_size_warning(ow, oh, w, h)
-    return img.resize((w, h), method)
-
-
-def __scale_width(img, target_size, crop_size, method=transforms.InterpolationMode.BICUBIC):
-    method = __transforms2pil_resize(method)
-    ow, oh = img.size
-    if ow == target_size and oh >= crop_size:
-        return img
-    w = target_size
-    h = int(max(target_size * oh / ow, crop_size))
-    return img.resize((w, h), method)
-
-
-def __crop(img, pos, size):
-    ow, oh = img.size
-    x1, y1 = pos
-    tw = th = size
-    if (ow > tw or oh > th):
-        return img.crop((x1, y1, x1 + tw, y1 + th))
-    return img
-
-
 def __flip(img, flip):
     if flip:
         return img.transpose(Image.FLIP_LEFT_RIGHT)
     return img
-
-
-def __print_size_warning(ow, oh, w, h):
-    """Print warning information about image size(only print once)"""
-    if not hasattr(__print_size_warning, 'has_printed'):
-        print("The image size needs to be a multiple of 4. "
-              "The loaded image size was (%d, %d), so it was adjusted to "
-              "(%d, %d). This adjustment will be done to all images "
-              "whose sizes are not multiples of 4" % (ow, oh, w, h))
-        __print_size_warning.has_printed = True

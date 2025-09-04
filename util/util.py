@@ -1,13 +1,46 @@
-"""This module contains simple helper functions """
-from __future__ import print_function
-import torch
-import numpy as np
-from PIL import Image
+"""This module contains simple helper functions."""
+
 import os
+import numpy as np
+import torch
+
+
+def calculate_padding(volume_shape, init_padding, input_patch_size, stride, dim=None):
+    """
+    Calculate the required padding for patch-based inference to ensure full coverage of the input volume.
+
+    If 'dim' is specified, only the last 'dim' dimensions are used (e.g., for 2D, dim=2 skips channel/z).
+    Otherwise, all dimensions are used (for 2.5D/3D).
+
+    Args:
+        volume_shape (tuple or list): Shape of the input volume.
+        init_padding (int or array-like): Initial padding applied to the volume.
+        input_patch_size (int or array-like): Size of the patch to extract.
+        stride (int or array-like): Stride between patches.
+        dim (int, optional): Number of spatial dimensions to consider (e.g., 2 for 2D, 3 for 3D). If None, use all dimensions.
+
+    Returns:
+        np.ndarray: The required padding for each dimension as an integer array.
+    """
+
+    if dim is not None:
+        shape = np.array(volume_shape[-dim:])
+    else:
+        shape = np.array(volume_shape)
+
+    number_of_patches = np.ma.ceil(((shape + init_padding - input_patch_size) / stride) + 1)
+    volume_new = (np.asarray(number_of_patches) * stride) + input_patch_size
+    new_padding = volume_new - shape - init_padding
+    new_padding = np.where(
+        new_padding > ((input_patch_size - stride) / 2),
+        new_padding,
+        new_padding + (input_patch_size - stride),
+    )
+    return new_padding.astype(int)
 
 
 def tensor2im(input_image):
-    """"Converts a Tensor array into a numpy image array.
+    """ "Converts a Tensor array into a numpy image array.
 
     Parameters:
         input_image (tensor) --  the input image tensor array
@@ -25,49 +58,68 @@ def tensor2im(input_image):
 
 
 def adjust_patch_size(opt):
+    """
+    Adjust the patch size in the options object to ensure compatibility with the chosen network architecture.
+
+    For UNet architectures, ensures the patch size is divisible by the depth factor (number of downsampling steps),
+    accounting for valid convolutions and optional patch halo. For other backbones, ensures divisibility by the depth factor.
+    Modifies opt.patch_size in place if necessary.
+
+    Args:
+        opt: An options object with attributes patch_size, netG, stitch_mode, phase, and optionally patch_halo.
+    """
+    # The depth factor's default value should change depening on the network architecture used for generating images.
+    depth_factor = 5
 
     old_patch_size = opt.patch_size
-    if opt.netG.startswith('unet'):
+    if opt.netG.startswith("unet"):
         depth_factor = int(opt.netG[5:])
+        if opt.stitch_mode == "tile-and-stitch" or opt.phase == "train":
+            patch_size = opt.patch_size
+            if (patch_size + 2) % depth_factor == 0:
+                pass
+            else:
+                # In the valid unet, the patch sizes that can be evenly downsampled in the layers (i.e. without residual) are
+                # limited to values which are divisible by 32 (2**5 for 5 downsampling steps), after adding the pixels lost in the valid conv layer, i.e.:
+                # 158 (instead of 160), 190 (instead of 192), 222 (instead of 224), etc. Below, the nearest available patch size
+                # selected to patch the image accordingly. (Choosing a smaller value than the given patch size, should ensure
+                # that the patches are not bigger than any dimensions of the whole input image)
+                new_patch_sizes = opt.patch_size - torch.arange(1, depth_factor)
+                new_patch_size = int(new_patch_sizes[(new_patch_sizes + 2) % depth_factor == 0])
+                opt.patch_size = new_patch_size
+                print(
+                    f"The provided patch size {old_patch_size} is not compatible with the chosen unet backbone with valid convolutions. Patch size was changed to {new_patch_size}"
+                )
+
+        elif opt.stitch_mode == "overlap-averaging":
+            patch_size = opt.patch_size
+            if (patch_size + opt.patch_halo * 2) % depth_factor == 0:
+                print(
+                    "Patch size is compatible with the unet backbone.",
+                    patch_size + opt.patch_halo * 2,
+                )
+                pass
+            else:
+                new_patch_sizes = opt.patch_size + opt.patch_halo * 2 - torch.arange(1, depth_factor)
+                new_patch_size = int(new_patch_sizes[new_patch_sizes % depth_factor == 0]) - opt.patch_halo * 2
+                opt.patch_size = new_patch_size
+                print(
+                    f"The provided patch size {old_patch_size} is not compatible with the unet backbone. Patch size was changed to {new_patch_size}"
+                )
+
+    else:
+        # This section has not been fully tested, but will be of interest if other backbones are used.
         patch_size = opt.patch_size
-        if (patch_size + 2) % depth_factor == 0:
+        if patch_size % depth_factor == 0:
             pass
         else:
-            # In the valid unet, the patch sizes that can be evenly downsampled in the layers (i.e. without residual) are
-            # limited to values which are divisible by 32 (2**5 for 5 downsampling steps), after adding the pixels lost in the valid conv layer, i.e.:
-            # 158 (instead of 160), 190 (instead of 192), 222 (instead of 224), etc. Below, the nearest available patch size
-            # selected to patch the image accordingly. (Choosing a smaller value than the given patch size, should ensure
-            # that the patches are not bigger than any dimensions of the whole input image)
             new_patch_sizes = opt.patch_size - torch.arange(1, depth_factor)
-            new_patch_size = int(new_patch_sizes[(new_patch_sizes + 2) % depth_factor == 0])
+            new_patch_size = int(new_patch_sizes[(new_patch_sizes % depth_factor) == 0])
             opt.patch_size = new_patch_size
-            print(
-                f"The provided patch size {old_patch_size} is not compatible with the chosen unet backbone with valid convolutions. Patch size was changed to {new_patch_size}")
-
-    elif opt.netG.startswith("resnet"):
-        patch_size = opt.patch_size
-        if patch_size % 4 == 0:
-            pass
-        else:
-            new_patch_sizes = opt.patch_size - torch.arange(1, 4)
-            new_patch_size = int(new_patch_sizes[(new_patch_sizes % 4) == 0])
-            opt.patch_size = new_patch_size
-            print(
-                f"The provided patch size {old_patch_size} is not compatible with the resnet backbone. Patch size was changed to {new_patch_size}")
-
-    elif opt.netG.startswith("swinunetr"):
-        patch_size = opt.patch_size
-        if patch_size % 32 == 0:
-            pass
-        else:
-            new_patch_sizes = opt.patch_size - torch.arange(1, 32)
-            new_patch_size = int(new_patch_sizes[(new_patch_sizes % 32) == 0])
-            opt.patch_size = new_patch_size
-            print(
-                f"The provided patch size {old_patch_size} is not compatible with the swinunetr backbone. Patch size was changed to {new_patch_size}")
+            print(f"The provided patch size {old_patch_size} is not compatible with the resnet backbone. Patch size was changed to {new_patch_size}")
 
 
-def diagnose_network(net, name='network'):
+def diagnose_network(net, name="network"):
     """Calculate and print the mean of average absolute(gradients)
 
     Parameters:
@@ -82,42 +134,6 @@ def diagnose_network(net, name='network'):
             count += 1
     if count > 0:
         mean = mean / count
-    print(name)
-    print(mean)
-
-
-def save_image(image_numpy, image_path, aspect_ratio=1.0):
-    """Save a numpy image to the disk
-
-    Parameters:
-        image_numpy (numpy array) -- input numpy array
-        image_path (str)          -- the path of the image
-    """
-
-    image_pil = Image.fromarray(image_numpy)
-    h, w, _ = image_numpy.shape
-
-    if aspect_ratio > 1.0:
-        image_pil = image_pil.resize((h, int(w * aspect_ratio)), Image.BICUBIC)
-    if aspect_ratio < 1.0:
-        image_pil = image_pil.resize((int(h / aspect_ratio), w), Image.BICUBIC)
-    image_pil.save(image_path)
-
-
-def print_numpy(x, val=True, shp=False):
-    """Print the mean, min, max, median, std, and size of a numpy array
-
-    Parameters:
-        val (bool) -- if print the values of the numpy array
-        shp (bool) -- if print the shape of the numpy array
-    """
-    x = x.astype(np.float64)
-    if shp:
-        print('shape,', x.shape)
-    if val:
-        x = x.flatten()
-        print('mean = %3.3f, min = %3.3f, max = %3.3f, median = %3.3f, std=%3.3f' % (
-            np.mean(x), np.min(x), np.max(x), np.median(x), np.std(x)))
 
 
 def mkdirs(paths):

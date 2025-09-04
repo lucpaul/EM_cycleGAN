@@ -1,152 +1,144 @@
 import os
-
 import numpy as np
-import os
+import logging
 from .base_dataset_2d import BaseDataset2D, get_transform
 from .image_folder import make_dataset
-from .SliceBuilder import build_slices, build_slices_fast
+from .SliceBuilder import build_slices
 import torchvision.transforms as transforms
 import tifffile
 import random
 import torch
 
 
-class patchedunaligned2ddataset(BaseDataset2D):
+class PatchedUnaligned2dDataset(BaseDataset2D):
     """
-    This dataset class can load unaligned/unpaired datasets and is used during training of a 2d model.
+    Dataset for loading unaligned/unpaired 2D datasets for training.
 
-    It requires two directories to host training images from domain A '/path/to/data/trainA'
-    and from domain B '/path/to/data/trainB' respectively.
-    You can train the model with the dataset flag '--dataroot /path/to/data'.
+    Requires two directories to host training images from domain A ('/path/to/data/trainA')
+    and from domain B ('/path/to/data/trainB').
+    Used during training of a 2D model.
     """
 
     def __init__(self, opt):
-        """Initialize this dataset class.
-
-        Parameters:
-            opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
-        BaseDataset2D.__init__(self, opt)
-        self.dir_A = os.path.join(opt.dataroot, opt.phase + 'A')  # create a path '/path/to/data/trainA'
-        self.dir_B = os.path.join(opt.dataroot, opt.phase + 'B')  # create a path '/path/to/data/trainB'
-        self.A_paths = sorted(make_dataset(self.dir_A, opt.max_dataset_size))   # load images from '/path/to/data/trainA'
-        self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))    # load images from '/path/to/data/trainB'
-        self.max_samples = opt.max_dataset_size
-        self.transform_A = get_transform(self.opt)#, grayscale=(input_nc == 1))
-        self.transform_B = get_transform(self.opt)#, grayscale=(output_nc == 1))
+        Initialize the PatchedUnaligned2dDataset.
 
+        Parameters
+        ----------
+        opt : Option class
+            Stores all the experiment flags; needs to be a subclass of BaseOptions.
+        """
+        super().__init__(opt)
+        self.dir_A = os.path.join(opt.dataroot, opt.phase + "A")
+        self.dir_B = os.path.join(opt.dataroot, opt.phase + "B")
+        self.A_paths = sorted(make_dataset(self.dir_A, opt.max_dataset_size))
+        self.B_paths = sorted(make_dataset(self.dir_B, opt.max_dataset_size))
+        self.max_samples = opt.max_dataset_size
+        self.transform_A = get_transform(self.opt)
+        self.transform_B = get_transform(self.opt)
         self.patch_size = [opt.patch_size, opt.patch_size]
         self.stride_A = [opt.stride_A, opt.stride_A]
         self.stride_B = [opt.stride_B, opt.stride_B]
-
         self.filter_A = 0.1
         self.filter_B = 0.1
-
         self.patches_A = self.build_patches(self.A_paths, self.stride_A, self.filter_A)
         self.patches_B = self.build_patches(self.B_paths, self.stride_B, self.filter_B)
 
-    def build_patches(self, image_paths, stride, filter):
+    def build_patches(self, image_paths, stride, filter_):
+        """
+        Build patches from a list of image paths.
+
+        Parameters
+        ----------
+        image_paths : list
+            List of image file paths.
+        stride : list or tuple
+            Stride for patch extraction.
+        filter_ : float
+            Fraction of lowest-variance patches to filter out.
+
+        Returns
+        -------
+        list
+            Filtered list of patches.
+        """
         all_patches = []
         stdevs = []
-        transform = transforms.Compose([
-            transforms.ToTensor()
-        ])
+        transform = transforms.Compose([transforms.ToTensor()])
         for image_path in image_paths:
             img = tifffile.imread(image_path)
+            if len(img.shape) > 3:
+                img = np.squeeze(img)
             img = transform(img)
             img = torch.permute(img, (1, 2, 0))
-            print("Building patches for", image_path)
-            # This option is quite a bit faster, but currently should only be used if the image is evenly divisible by the patch size
-            # This one also currently will not augment the extracted patches.
-            if stride == self.patch_size and all([i % j == 0 for i, j in zip(torch.tensor((img.shape[0]*img.shape[1], img.shape[2])), self.patch_size)]):
-                img_patches = build_slices_fast(img, self.patch_size, n_samples=self.max_samples)
-                all_patches += img_patches
-
-                print('All image dimensions evenly divisible by patch size')
-
-            # This is the tried and trusted version of the slicer
-            else:
-                for z in range(0, img.shape[0]):
-                    img_slice = img[z]
-                    slices = build_slices(img_slice, self.patch_size, stride)
-
-                    for slice in slices:
-                        img_patch = img_slice[slice]
-                        img_patch = torch.unsqueeze(img_patch, 0)
-                        stdevs.append(torch.std(img_patch, dim=[1,2]).item())
-                        #img_patch = self.transform_A(img_patch)
-                        all_patches.append(img_patch)
-
-        #print(sorted(stdevs)[0], sorted(stdevs)[-1])
-        all_patches_sorted = [x for _, x in sorted(zip(stdevs, all_patches), key=lambda pair:pair[0])]
-        #print(len(all_patches_sorted))
-        first_index = int(filter * len(all_patches_sorted))
+            logging.info("Building patches for %s", image_path)
+            for z in range(0, img.shape[0]):
+                img_slice = img[z]
+                slices = build_slices(img_slice, self.patch_size, stride, use_shape_only=False)
+                for slice_ in slices:
+                    img_patch = img_slice[slice_]
+                    img_patch = torch.unsqueeze(img_patch, 0)
+                    stdevs.append(torch.std(img_patch, dim=[1, 2]).item())
+                    all_patches.append(img_patch)
+        all_patches_sorted = [x for _, x in sorted(zip(stdevs, all_patches), key=lambda pair: pair[0])]
+        first_index = int(filter_ * len(all_patches_sorted))
         all_patches_filtered = all_patches_sorted[first_index:]
-        #print(len(all_patches_filtered))
-        # stdevs = torch.squeeze(torch.stack(stdevs), dim=1)
-        # print(stdevs.shape)
-        # index = torch.arange(stdevs.shape[0])
-        # print(index.shape)
-        # index[stdevs < torch.quantile(stdevs, filter, dim=None, keepdim=True, interpolation="nearest")] = -1
-        # all_patches = all_patches[index != -1]
-
-
-        # all_patches = torch.stack(all_patches)
-        #
-        # # Here I will test an option to filter out those patches that are mostly background.
-        # # For now, by choosing the 5% (?) of patches with the lowest standard deviation in pixel values,
-        # # which presumably contain the least insightful structures.
-        #
-        # print("filtering out the worst patches")
-        #
-        # stdevs = torch.squeeze(torch.std(all_patches, dim=[2, 3]), dim=1)
-        # print(stdevs.shape)
-        # index = torch.arange(stdevs.shape[0])
-        # print(index.shape)
-        # index[stdevs < torch.quantile(stdevs, filter, dim=None, keepdim=True, interpolation="nearest")] = -1
-        #
-        # all_patches = torch.squeeze(all_patches, dim=0)[index != -1]
         return all_patches_filtered
 
     def __getitem__(self, index):
-        """Return a data point and its metadata information.
-
-        Parameters:
-            index (int)      -- a random integer for data indexing
-
-        Returns a dictionary that contains A, B, A_paths and B_paths
-            A (tensor)       -- an image in the input domain
-            B (tensor)       -- its corresponding image in the target domain
-            A_paths (str)    -- image paths
-            B_paths (str)    -- image paths
         """
+        Return a data point and its metadata information.
 
+        Parameters
+        ----------
+        index : int
+            Index for data access.
+
+        Returns
+        -------
+        dict
+            Dictionary containing:
+            - 'A': Patch from domain A
+            - 'B': Patch from domain B
+        """
         if len(self.patches_A) <= len(self.patches_B):
             A_patch = self.patches_A[index]
             B_patch = random.choice(self.patches_B)
-
-        elif len(self.patches_B) < len(self.patches_A):
+        else:
             B_patch = self.patches_B[index]
             A_patch = random.choice(self.patches_A)
-
         A_patch = self.transform_A(A_patch)
         B_patch = self.transform_B(B_patch)
-
-        return {'A': A_patch, 'B': B_patch}
+        return {"A": A_patch, "B": B_patch}
 
     def __len__(self):
-        """Return the total number of images in the dataset.
+        """
+        Return the total number of images in the dataset.
 
         As we have two datasets with potentially different number of images,
-        we take a maximum of
+        we take the minimum of the two.
         """
         return min(len(self.patches_A), len(self.patches_B))
 
+    def normalize(self, input_, lower_percentile, upper_percentile):
+        """
+        Normalize input array to the given percentiles.
 
-    def normalize(self, input, lower_percentile, upper_percentile):
-        u_p_input = np.percentile(input, upper_percentile)
-        l_p_input = np.percentile(input, lower_percentile)
+        Parameters
+        ----------
+        input_ : np.ndarray
+            Input array to normalize.
+        lower_percentile : float
+            Lower percentile for normalization.
+        upper_percentile : float
+            Upper percentile for normalization.
 
-        normalized_input = (input - l_p_input) / (u_p_input - l_p_input)
-
+        Returns
+        -------
+        np.ndarray
+            Normalized input array.
+        """
+        u_p_input = np.percentile(input_, upper_percentile)
+        l_p_input = np.percentile(input_, lower_percentile)
+        normalized_input = (input_ - l_p_input) / (u_p_input - l_p_input)
         return normalized_input

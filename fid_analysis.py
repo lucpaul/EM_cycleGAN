@@ -20,9 +20,9 @@ Setting the target domain(s)
               is to be translated into the target domain. This can be dynamically changed if the model is evaluated 'both-ways'
 
 '--target_domain_fid_file': To set the target domain against which to evaluate the models' predictions,
-                                                               the user can set '--target_domain_B_fid_file' and  which should provide the
+                                                               the user can set '--target_domain_fid_file' and  which should provide the
                                                                paths to previously calculated FID feature .npz files. If models are evaluated
-                                                               'one-way', the user should provide '--target_domain_B_fid_file' when
+                                                               'one-way', the user should provide '--target_domain_fid_file' when
                                                                evaluating the AtoB models, or vice versa.
 
 '--target_domain': If no files for the target domains have been calculated previously, it will be enough to provide '--target_domain' flag and
@@ -32,7 +32,7 @@ Setting the target domain(s)
 
 Results
 
-During script execution, temporary predictions of for the checkpoints are stored in two additional folders named
+During script execution, temporary predictions for the checkpoints are stored in two additional folders named
 temp_resultsA and temp_resultsB which are saved in the '--results_dir'. '--results_dir' will also hold the FID feature files in .npz format.
 
 Finally, the scores for each checkpoint are stored in a csv file in the model folder ('--name')
@@ -51,7 +51,8 @@ Examples
         python ./fid_analysis.py --dataroot path/to/domainA --name path/to/model --results_dir path/to/results --test_mode 3d
                                  --target_domain path/to/domainB --eval_direction both-ways --patch_size 190
 
-See options/base_options.py and options/test_options.py for the key options and models/test_model.py for additional fid specific options."""
+See options/base_options.py and options/test_options.py for the key options and models/test_model.py for additional fid specific options.
+"""
 
 import os
 import torch
@@ -60,7 +61,7 @@ from data.SliceBuilder import build_slices
 import random
 import tifffile
 from util.fid_score import calculate_fid_given_paths, save_fid_stats
-from calculate_FID_features import fid_features
+from util.calculate_FID_features import fid_features
 import shutil
 
 
@@ -69,37 +70,48 @@ def fid_analysis(opt):
     dicti = {}
     model_settings = open(os.path.join(opt.name, "train_opt.txt"), "r").read().splitlines()
     for x in range(1, len(model_settings) - 1):
-        dicti[model_settings[x].split(':')[0].replace(' ', '')] = model_settings[x].split(':')[1].replace(' ', '')
+        dicti[model_settings[x].split(":")[0].replace(" ", "")] = model_settings[x].split(":")[1].replace(" ", "")
 
-    if dicti['train_mode'] == '3d' and dicti['netG'].startswith('unet'):
-        from test_3D import inference
-        opt.dataset_mode = 'patched_3d'
-    elif dicti['train_mode'] == '3d' and not dicti['netG'].startswith('unet'):
-        from test_3D_resnet import inference
-        opt.dataset_mode = 'patched_3d'
-    elif dicti['train_mode'] == '2d' and dicti['netG'].startswith('unet'):
-        #from test_2D_no_crop import inference
-        #from test_2D_resnet import inference
-        from test_2_5D import inference_2_5D
-        from test_2D import inference
-        opt.dataset_mode = 'patched_2d'
-    elif dicti['train_mode'] == '2d' and not dicti['netG'].startswith('unet'):
-        from test_2D_resnet import inference
-        from test_2_5D_resnet import inference_2_5D_resnet
-        opt.dataset_mode = 'patched_2d'
-    else:
-        if dicti['netG'].startswith('unet'):
-            from test_2D import inference
+    if dicti["train_mode"] == "3d" and dicti["netG"].startswith("unet"):
+        from test_3d import inference
+
+        if opt.use_zarr:
+            opt.dataset_mode = "patched_3d_zarr"
         else:
-            from test_2D_resnet import inference
+            opt.dataset_mode = "patched_3d"
+
+        print("3d dataset mode: ", opt.dataset_mode)
+
+    # elif dicti["train_mode"] == "3d" and not dicti["netG"].startswith("unet"):
+    #     from test_3d_resnet import inference
+
+    # opt.dataset_mode = "patched_3d"
+    elif dicti["train_mode"] == "2d" and dicti["netG"].startswith("unet"):
+        from test_2_5d import inference_2_5D
+        from test_2d import inference
+
+        if opt.use_zarr:
+            if opt.test_mode == "2d":
+                opt.dataset_mode = "patched_2d_zarr"
+            elif opt.test_mode == "2.5d":
+                opt.dataset_mode = "patched_2_5d_zarr"
+        else:
+            if opt.test_mode == "2d":
+                opt.dataset_mode = "patched_2d"
+            elif opt.test_mode == "2.5d":
+                opt.dataset_mode = "patched_2_5d"
+
+    else:
+        if dicti["netG"].startswith("unet"):
+            from test_2d import inference
 
     all_fid_scores = {}
     # Hard-code the initial source and target domains
 
-    if opt.dataroot.endswith('/'):
+    if opt.dataroot.endswith("/"):
         opt.dataroot = opt.dataroot[:-1]
 
-    if opt.target_domain.endswith('/'):
+    if opt.target_domain.endswith("/"):
         opt.target_domain = opt.target_domain[:-1]
 
     source_domain = opt.dataroot
@@ -107,11 +119,11 @@ def fid_analysis(opt):
 
     for checkpoint in os.listdir(opt.name):
 
-        '''Inference Part'''
+        """Inference Part"""
         if not (checkpoint.endswith("G_A.pth") or checkpoint.endswith("G_B.pth")):
             continue
         else:
-            if opt.eval_direction == 'both-ways':
+            if opt.eval_direction == "both-ways":
                 if checkpoint.endswith("G_A.pth"):
                     if opt.model_suffix == "_B":
                         opt.model_suffix = "_A"
@@ -125,16 +137,16 @@ def fid_analysis(opt):
 
                 opt.dataroot = opt.source_domain
 
-            elif opt.eval_direction == 'one-way':
+            elif opt.eval_direction == "one-way":
                 if opt.model_suffix not in checkpoint:
                     continue
 
-            if os.path.exists(os.path.join(opt.results_dir, "temp_results"+opt.model_suffix)):
-                shutil.rmtree(os.path.join(opt.results_dir, "temp_results"+opt.model_suffix))
+            if os.path.exists(os.path.join(opt.results_dir, "temp_results" + opt.model_suffix)):
+                shutil.rmtree(os.path.join(opt.results_dir, "temp_results" + opt.model_suffix))
 
-            os.mkdir(os.path.join(opt.results_dir, "temp_results"+opt.model_suffix))
+            os.mkdir(os.path.join(opt.results_dir, "temp_results" + opt.model_suffix))
 
-            opt.results_dir = os.path.join(opt.results_dir, "temp_results"+opt.model_suffix)
+            opt.results_dir = os.path.join(opt.results_dir, "temp_results" + opt.model_suffix)
 
             if checkpoint.startswith("l"):
                 opt.epoch = "latest"
@@ -145,30 +157,26 @@ def fid_analysis(opt):
             elif checkpoint[3] == "_":
                 opt.epoch = int(checkpoint[:3])
 
-            if opt.test_mode == "2.5d" and dicti['netG'].startswith('unet'):
-                opt.dataset_mode = 'patched_2_5d'
+            if opt.test_mode == "2.5d" and dicti["netG"].startswith("unet"):
                 inference_2_5D(opt)
-                #inference_2_5D_resnet(opt)
-            elif opt.test_mode == "2.5d" and not dicti['netG'].startswith('unet'):
-                opt.dataset_mode = 'patched_2_5d'
-                inference_2_5D_resnet(opt)
+
             else:
                 inference(opt)
 
             # Reset results dir to base folder
             opt.results_dir = os.path.split(opt.results_dir)[0]
 
-        '''FID Evaluation on the predictions'''
+        """FID Evaluation on the predictions"""
 
         patches = []
-        for img in os.listdir(os.path.join(opt.results_dir, "temp_results"+opt.model_suffix)):
-            dataset = tifffile.imread(os.path.join(opt.results_dir, "temp_results"+opt.model_suffix, img))
+        for img in os.listdir(os.path.join(opt.results_dir, "temp_results" + opt.model_suffix)):
+            dataset = tifffile.imread(os.path.join(opt.results_dir, "temp_results" + opt.model_suffix, img))
             dataset = torch.from_numpy(dataset)
 
             new_patches = []
             for z in range(0, dataset.shape[0]):
                 img_slice = dataset[z]
-                slices = build_slices(img_slice, [128, 128], [128, 128])
+                slices = build_slices(img_slice, [128, 128], [128, 128], use_shape_only=False)
                 for slice in slices:
                     img_patch = img_slice[slice]
                     img_patch = torch.unsqueeze(img_patch, 0)
@@ -177,58 +185,134 @@ def fid_analysis(opt):
             patches += new_patches
 
         random.seed(42)
-        indices = random.sample(range(len(patches)), k=2000) #k=20000 by default, but less for testing
+        indices = random.sample(range(len(patches)), k=2000)  # k=20000 by default, but less for testing
 
         patches = torch.stack(patches)
         patches = patches[indices, :, :, :]
 
-        if opt.name.endswith('/'):
+        if opt.name.endswith("/"):
             opt.name = opt.name[:-1]
 
-        fingerprint_path = os.path.join(opt.results_dir, "FID_features_for_"+os.path.basename(opt.name) + "_epoch_" + checkpoint[:-12] + "_generated_" + os.path.basename(opt.dataroot) + "_as_" + os.path.basename(opt.target_domain))
+        fingerprint_path = os.path.join(
+            opt.results_dir,
+            "FID_features_for_"
+            + os.path.basename(opt.name)
+            + "_epoch_"
+            + checkpoint[:-12]
+            + "_generated_"
+            + os.path.basename(opt.dataroot)
+            + "_as_"
+            + os.path.basename(opt.target_domain),
+        )
 
         paths = [list(patches), fingerprint_path]
 
         # Here the paths argument is a list containing a list and a path
-        save_fid_stats(paths, batch_size=50, device='cuda', dims=2048)
+        save_fid_stats(paths, batch_size=50, device="cuda", dims=2048)
 
         # If no ground-truth files exist yet, they can be calculated here
         # This will calculate the fid_file for whatever was orignally defined as the target domain
 
-        if opt.target_domain_fid_file == '':
+        if opt.target_domain_fid_file == "":
             assert os.path.exists(target_domain)
-            fid_features(target_domain, opt.results_dir, n_samples=2000)#n=20000 by default
-            opt.target_domain_fid_file = os.path.join(opt.results_dir, "FID_features_for_"+os.path.basename(target_domain)+".npz")
+            fid_features(target_domain, opt.results_dir, n_samples=2000)  # n=20000 by default
+            opt.target_domain_fid_file = os.path.join(
+                opt.results_dir,
+                "FID_features_for_" + os.path.basename(target_domain) + ".npz",
+            )
 
         # This will calculate the fid_file for whatever was originally defined as dataroot in the command flag.
-        if opt.source_domain_fid_file == '':
-            if opt.eval_direction == 'both-ways':
-                fid_features(source_domain, opt.results_dir, n_samples=2000)#n=20000
-                opt.source_domain_fid_file = os.path.join(opt.results_dir, "FID_features_for_" + os.path.basename(source_domain) + ".npz")
+        if opt.source_domain_fid_file == "":
+            if opt.eval_direction == "both-ways":
+                fid_features(source_domain, opt.results_dir, n_samples=2000)  # n=20000
+                opt.source_domain_fid_file = os.path.join(
+                    opt.results_dir,
+                    "FID_features_for_" + os.path.basename(source_domain) + ".npz",
+                )
 
         # Here the path arguments are both paths to .npz files
         if opt.eval_direction == "both-ways":
             if opt.model_suffix.endswith("A"):
-                fid_score = calculate_fid_given_paths([fingerprint_path+".npz", opt.target_domain_fid_file],  batch_size=50, device='cuda', dims=2048)
-                all_fid_scores["FID_" + os.path.basename(opt.name) + "_" + str(checkpoint[:-12]) + ": generated " + os.path.basename(opt.dataroot) + " as " + os.path.basename(opt.target_domain) + " vs. " + os.path.basename(opt.target_domain_fid_file)] = fid_score
+                fid_score = calculate_fid_given_paths(
+                    [fingerprint_path + ".npz", opt.target_domain_fid_file],
+                    batch_size=50,
+                    device="cuda",
+                    dims=2048,
+                )
+                all_fid_scores[
+                    "FID_"
+                    + os.path.basename(opt.name)
+                    + "_"
+                    + str(checkpoint[:-12])
+                    + ": generated "
+                    + os.path.basename(opt.dataroot)
+                    + " as "
+                    + os.path.basename(opt.target_domain)
+                    + " vs. "
+                    + os.path.basename(opt.target_domain_fid_file)
+                ] = fid_score
             else:
-                fid_score = calculate_fid_given_paths([fingerprint_path+".npz", opt.source_domain_fid_file], batch_size=50, device='cuda', dims=2048)
-                all_fid_scores["FID_" + os.path.basename(opt.name) + "_" + str(checkpoint[:-12]) + ": generated " + os.path.basename(opt.dataroot) + " as " + os.path.basename(opt.target_domain) + " vs. " + os.path.basename(opt.source_domain_fid_file)] = fid_score
+                fid_score = calculate_fid_given_paths(
+                    [fingerprint_path + ".npz", opt.source_domain_fid_file],
+                    batch_size=50,
+                    device="cuda",
+                    dims=2048,
+                )
+                all_fid_scores[
+                    "FID_"
+                    + os.path.basename(opt.name)
+                    + "_"
+                    + str(checkpoint[:-12])
+                    + ": generated "
+                    + os.path.basename(opt.dataroot)
+                    + " as "
+                    + os.path.basename(opt.target_domain)
+                    + " vs. "
+                    + os.path.basename(opt.source_domain_fid_file)
+                ] = fid_score
         else:
-            fid_score = calculate_fid_given_paths([fingerprint_path + ".npz", opt.target_domain_fid_file], batch_size=50, device='cuda', dims=2048)
-            all_fid_scores["FID_" + os.path.basename(opt.name) + "_" + str(checkpoint[:-12]) + ": generated " + os.path.basename(opt.dataroot) + " as " + os.path.basename(opt.target_domain) + " vs. " + os.path.basename(opt.target_domain_fid_file)] = fid_score
+            fid_score = calculate_fid_given_paths(
+                [fingerprint_path + ".npz", opt.target_domain_fid_file],
+                batch_size=50,
+                device="cuda",
+                dims=2048,
+            )
+            all_fid_scores[
+                "FID_"
+                + os.path.basename(opt.name)
+                + "_"
+                + str(checkpoint[:-12])
+                + ": generated "
+                + os.path.basename(opt.dataroot)
+                + " as "
+                + os.path.basename(opt.target_domain)
+                + " vs. "
+                + os.path.basename(opt.target_domain_fid_file)
+            ] = fid_score
 
-    with open(opt.name+"/fid_scores.csv" , "w") as fid_csv_scores:
+    with open(opt.name + "/fid_scores.csv", "w") as fid_csv_scores:
         for key in all_fid_scores.keys():
             fid_csv_scores.write("%s,%s\n" % (key, all_fid_scores[key]))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     opt = TestOptions().parse()
-    opt.num_threads = 0  # test code only supports num_threads = 0
-    opt.batch_size = 1  # test code only supports batch_size = 1
+    if opt.test_mode == "3d":
+        opt.batch_size = 2
+        if opt.use_zarr:
+            opt.num_threads = 8  # test code only supports num_threads = 0
+        else:
+            opt.num_threads = 0
+
+    else:
+        if opt.use_zarr:
+            opt.num_threads = 8  # test code only supports num_threads = 0
+        else:
+            opt.num_threads = 0
+
     opt.serial_batches = True  # disable data shuffling; comment this line if results on randomly chosen images are needed.
     opt.no_flip = True  # no flip; comment this line if results on flipped images are needed.
-    opt.preprocess = 'none'
+    opt.preprocess = "none"
     opt.input_nc = 1
     opt.output_nc = 1
     fid_analysis(opt)
