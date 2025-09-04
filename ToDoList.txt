@@ -1,3 +1,0 @@
-3. Test for resnet models
-4. Finish test for 2.5d (tile-and-stitch) and 3d tests.
-7. Push
