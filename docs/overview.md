@@ -9,15 +9,7 @@ To help users better understand and use codebase, we briefly overview the functi
 
 [test_3D.py](../test_3D.py) is a test script for 3D Unet models. Once you have trained your model with `train.py` in `--train_mode 3d` and `--netG unet_...`, you can use this script to test the model, using the flag `--test_mode 3d`.
 
-[test_2D_resnet.py](../test_2D_resnet.py) is a test script for 2D models that do not have a unet backbone. Once you have trained your model with `train.py` in `train_mode 2d`, you can use this script to test the model, using the flag `--test_mode 2d`.
-
-[test_3D_resnet.py](../test_3D_resnet.py) is a test script for 2D models that do not have a unet backbone. Once you have trained your model with `train.py` in `train_mode 3d`, you can use this script to test the model, using the flag `--test_mode 3d`.
-
 [test_2_5D.py](../test_2_5D.py) is a test script for 2D Unet models. Once you have trained your model with `train.py` in `--train_mode 2d` and `--netG unet_...`, you can use this script to test the model, using the flag `--test_mode 2.5d`.
-
-[test_2_5D_resnet.py](../test_2_5D_resnet.py) is a test script for 2D models that do not have a unet backbone. Once you have trained your model with `train.py` in `train_mode 2d`, you can use this script to test the model, using the flag `--test_mode 2.5d`.
-
-
 
 [data](../data) directory contains all the modules related to data loading and preprocessing. To add a custom dataset class called `dummy`, you need to add a file called `dummy_dataset.py` and define a subclass `DummyDataset` inherited from `BaseDataset`. You need to implement four functions: `__init__` (initialize the class, you need to first call `BaseDataset.__init__(self, opt)`), `__len__` (return the size of dataset), `__getitem__`　(get a data point), and optionally `modify_commandline_options` (add dataset-specific options and set default options). Now you can use the dataset class by specifying flag `--dataset_mode dummy`. See our template dataset [class](../data/template_dataset.py) for an example.   Below we explain each file in details.
 
@@ -40,9 +32,6 @@ To help users better understand and use codebase, we briefly overview the functi
 * [networks_2d.py](../models/networks_2d.py) module implements 2d network architectures (both generators and discriminators), as well as normalization layers, initialization methods, optimization scheduler (i.e., learning rate policy), and GAN objective function (`vanilla`, `lsgan`, `wgangp`).
 * [networks_3d.py](../models/networks_3d.py) module implements 3d network architectures (both generators and discriminators), as well as normalization layers, initialization methods, optimization scheduler (i.e., learning rate policy), and GAN objective function (`vanilla`, `lsgan`, `wgangp`).
 * [SSIM.py](../models/SSIM.py) module implements the structural similarity metric in 2d and 3d, as published by [https://github.com/jinh0park/pytorch-ssim-3D/tree/master](https://github.com/jinh0park/pytorch-ssim-3D/tree/master)
-* [template_model.py](../models/template_model.py) provides a model template with detailed documentation. Check out this file if you plan to implement your own model.
-* [test_model.py](../models/test_model.py) implements a model that can be used to generate CycleGAN results for only one direction. This model will automatically set `--dataset_mode patched_2d`, `patched_3d` or `patched_2_5d`, which only loads the images from one set. See the test [instruction](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix#apply-a-pre-trained-model-cyclegan) for more details.
-
 
 [options](../options) directory includes our option modules: training options, test options, and basic options (used in both training and test). `TrainOptions` and `TestOptions` are both subclasses of `BaseOptions`. They will reuse the options defined in `BaseOptions`.
 * [\_\_init\_\_.py](../options/__init__.py)  is required to make Python treat the directory `options` as containing packages,
