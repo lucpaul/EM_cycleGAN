@@ -31,9 +31,9 @@ we implement the tile-and-stitch method described in our group (https://github.c
 a model using a unet backbone to stitch large datasets without any stitching artefacts.
 
 ### 3D assembly
-There are different ways to assemble a 3D dataset. Here, the you can firstly train on 2D or 3D patches, but also infer either on 2D patches and slice-by-slice or on 3D patches.
+There are different ways to assemble a 3D dataset. Here, you can infer either on 2D patches and slice-by-slice or on 3D patches.
 Additionally, you can perform a 2.5D assembly where the volume is assembled as an ensemble of 2D patches from three orthogonal directions of the stack. When testing the models,
-this is particularly useful, when the 2D model checkpoints themselves have artefacts. These get smoothed out.
+this was particularly useful when the 2D model checkpoints themselves had artefacts. These get smoothed out.
 
 ### Evaluation
 Once the models are trained, they can be tested using a pipeline which calculates the Frechet Inception Distance (FID) between the
